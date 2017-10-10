@@ -1,0 +1,8 @@
+js/
+compile
+libmozglue.dylib
+libmozjs-52.dylib
+.idea/
+
+/vendor/
+composer.lock

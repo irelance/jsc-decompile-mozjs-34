@@ -1,0 +1,19 @@
+{
+    "name": "irelance/jsc-decompile-mozjs-34",
+    "license": "proprietary",
+    "type": "project",
+    "authors": [
+        {
+            "name": "irelance",
+            "email": "heirelance@163.com"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Irelance\\Mozjs34\\": "src"
+        }
+    },
+    "require": {
+        "php": ">=7.0.0"
+    }
+}
