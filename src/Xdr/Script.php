@@ -74,16 +74,8 @@ trait Script
     protected function parserScript(Context $context)
     {
         $opEnd = $this->parseIndex + $context->getSummary('length');
-        for ($i = $this->parseIndex; $i < $opEnd;) {
-            $op = Constant::_Opcode[$this->bytecodes[$i]];
-            $i++;
-            $end = $i + $op['len'] - 1;
-            $bytes = [];
-            for ($j = $i; $j < $end; $j++) {
-                $bytes[] = $this->bytecodes[$i];
-                $i++;
-            }
-            $context->addOperation($op['val'], $bytes);
+        for (;$this->parseIndex < $opEnd;) {
+            $context->addOperation($this->parserOperation());
         }
         $this->parseIndex = $opEnd;
     }

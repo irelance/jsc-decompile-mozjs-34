@@ -69,18 +69,17 @@ trait Object
 
     public function xdrCK_JSObject()
     {
-        $isArray = $this->todec();
-        if ($isArray) {
-            $length = $this->todec();
-        } else {
-            $kind = $this->todec();
-        }
-        $capacity = $this->todec();
+        $result = [];
+        $result['isArray'] = $isArray = $this->todec();
+        $this->todec();//isArray ? length : kind
+        $result['capacity'] = $capacity = $this->todec();
         $initialized = $this->todec();
+        $result['initialized'] = [];
         for ($i = 0; $i < $initialized; $i++) {
-            $tmpValue = $this->xdrConst();
+            $result['initialized'][] = $tmpValue = $this->xdrConst();
         }
         $nslot = $this->todec();
+        $result['nslot'] = [];
         for ($i = 0; $i < $nslot; $i++) {
             $idType = $this->todec();
             if ($idType == JSID_TYPE_STRING) {
@@ -89,13 +88,14 @@ trait Object
                 $key = $this->todec();
             }
             $val = $this->xdrConst();
+            $result['nslot'][$key] = $val;
         }
         $isSingletonTyped = $this->todec();
         $frozen = $this->todec();
         if ($isArray) {
-            $copyOnWrite=$this->todec();
+            $copyOnWrite = $this->todec();
         }
-        return [];
+        return $result;
     }
 
 }

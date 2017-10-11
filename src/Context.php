@@ -8,8 +8,11 @@
  */
 namespace Irelance\Mozjs34;
 
+use Irelance\Mozjs34\Helper\Reveal;
+
 class Context
 {
+    use Reveal;
     protected $summaries = [];
     protected $operations = [];
     protected $nodes = [];
@@ -30,9 +33,9 @@ class Context
         return true;
     }
 
-    public function addOperation($op, array $bytes)
+    public function addOperation(array $operation)
     {
-        $this->operations[] = ['id' => $op, 'params' => $bytes];
+        $this->operations[] = $operation;
     }
 
     public function addNode($node)
@@ -81,20 +84,5 @@ class Context
     public function getSummary($key)
     {
         return $this->summaries[$key];
-    }
-
-    public function getSummaries()
-    {
-        return $this->summaries;
-    }
-
-    public function getOperations()
-    {
-        return $this->operations;
-    }
-
-    public function getAtoms()
-    {
-        return $this->atoms;
     }
 }

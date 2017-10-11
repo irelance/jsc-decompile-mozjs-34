@@ -10,4 +10,23 @@ include 'vendor/autoload.php';
 
 $decompile = new Irelance\Mozjs34\Decompile($argv[1]);
 $decompile->run();
-$decompile->printOpcodes();
+//$decompile->runResult();
+$contexts = $decompile->getContexts();
+foreach ($contexts as $index => $context) {
+    //if ($index==7) {
+        echo '==================================' . $index . '==================================S', CLIENT_EOL;
+        /* @var \Irelance\Mozjs34\Context $context */
+        $context->printProperties([
+            'Summaries',
+            'Operations',
+            'Nodes',
+            'Atoms',
+            'Consts',
+            'Objects',
+            'Regexps',
+            'TryNote',
+            'ScopeNote',
+        ]);
+        echo '==========================================================================E', CLIENT_EOL;
+    //}
+}

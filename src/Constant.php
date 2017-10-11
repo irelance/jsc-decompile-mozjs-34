@@ -7,6 +7,11 @@
  * Time: 上午10:05
  */
 namespace Irelance\Mozjs34;
+if (php_sapi_name() == 'cli') {
+    define('CLIENT_EOL', PHP_EOL);
+} else {
+    define('CLIENT_EOL', "<br>");
+}
 
 define('JSID_TYPE_STRING', 0x0);
 define('JSID_TYPE_INT', 0x1);

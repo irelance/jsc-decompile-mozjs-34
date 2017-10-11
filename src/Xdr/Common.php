@@ -15,11 +15,26 @@ trait Common
 {
     protected function todec($length = 4)//length include start
     {
+        return $this->littleEndian2Dec($length);
+    }
+
+    protected function littleEndian2Dec($length)
+    {
         $result = '';
         for ($i = $this->parseIndex + $length - 1; $i >= $this->parseIndex; $i--) {
             $result .= sprintf('%02s', dechex($this->bytecodes[$i]));
         }
         $this->parseIndex += $length;
+        return hexdec($result);
+    }
+
+    protected function bigEndian2Dec($length)
+    {
+        $end = $this->parseIndex + $length;
+        $result = '';
+        for (; $this->parseIndex < $end; $this->parseIndex++) {
+            $result .= sprintf('%02s', dechex($this->bytecodes[$this->parseIndex]));
+        }
         return hexdec($result);
     }
 
