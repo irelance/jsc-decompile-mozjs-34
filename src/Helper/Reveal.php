@@ -13,8 +13,6 @@ use Irelance\Mozjs34\Constant;
 
 trait Reveal
 {
-    use Operation;
-
     public function printSummaries()
     {
         if (count($this->summaries)) {
@@ -30,13 +28,6 @@ trait Reveal
     {
         echo '---------------Operations--------------', CLIENT_EOL;
         foreach ($this->operations as $operation) {
-            /*if ($result = $this->printOperation($operation)) {
-                echo $result, CLIENT_EOL;
-            } else {
-                $op = Constant::_Opcode[$operation['id']];
-                echo $op['op'], ' ', $op['len'], ' ', $op['use'], ' ', $op['def'], ' :';
-                echo implode(', ', $operation['params']), CLIENT_EOL;
-            }*/
             $op = Constant::_Opcode[$operation['id']];
             echo $op['op'], json_encode($operation['params']), ' pop: ', $operation['pop'], ' push: ', $operation['push'], CLIENT_EOL;
         }
@@ -65,8 +56,8 @@ trait Reveal
     {
         if (count($this->consts)) {
             echo '-----------------Consts----------------', CLIENT_EOL;
-            foreach ($this->consts as $const) {
-                echo $const['type'], ' : ', $const['value'], CLIENT_EOL;
+            foreach ($this->consts as $key => $const) {
+                echo $key, ' : [', $const['type'], ']',$const['value'], CLIENT_EOL;
             }
             echo '---------------------------------------', CLIENT_EOL;
         }
@@ -124,5 +115,15 @@ trait Reveal
                 $this->$call();
             }
         }
+    }
+
+    public function printContent()
+    {
+        foreach ($this->operations as $operation) {
+            $this->revealOperation($operation);
+        }
+        echo '----------------Content----------------', CLIENT_EOL;
+        echo $this->content, CLIENT_EOL;
+        echo '---------------------------------------', CLIENT_EOL;
     }
 }

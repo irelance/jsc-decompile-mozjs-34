@@ -13,6 +13,16 @@ use Irelance\Mozjs34\Constant;
 
 trait Common
 {
+    protected function getRawHex($length)
+    {
+        $end = $this->parseIndex + $length;
+        $result = '';
+        for (; $this->parseIndex < $end; $this->parseIndex++) {
+            $result .= sprintf('%02s', dechex($this->bytecodes[$this->parseIndex]));
+        }
+        return $result;
+    }
+
     protected function todec($length = 4)//length include start
     {
         return $this->littleEndian2Dec($length);
@@ -40,15 +50,17 @@ trait Common
 
     public function xdrConst()
     {
+        $type = $this->todec();
         $const = [
-            'type' => $this->todec(),
+            'type' => Constant::_ConstTag[$type],
         ];
-        switch ($const['type']) {
+        switch ($type) {
             case 0:
                 $const['value'] = $this->todec();
                 break;
             case 1:
-                $const['value'] = $this->todec(8);
+                $value = unpack('d', pack('H*', $this->getRawHex(8)));
+                $const['value'] = $value[1];
                 break;
             case 2:
                 $const['value'] = $this->XDRAtom();
@@ -82,16 +94,20 @@ trait Common
 
     public function XDRInterpretedFunction()
     {
+        $result = ['name' => ''];
         $firstword = $this->todec();
         if ($firstword & Constant::_FirstWordFlag['HasAtom']) {
-            $this->XDRAtom();
+            $result['name'] = $this->XDRAtom();
         }
         $flagsword = $this->todec();
         if ($firstword & Constant::_FirstWordFlag['IsLazy']) {
             $this->XDRLazyScript();
+            $result['type'] = 'lazy';
         } else {
-            $this->XDRScript();
+            $result['type'] = 'block';
+            $result['context'] = $this->XDRScript();
         }
+        return $result;
     }
 
     public function XDRLazyFreeVariables()

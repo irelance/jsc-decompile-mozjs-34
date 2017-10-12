@@ -8,11 +8,20 @@
  */
 namespace Irelance\Mozjs34;
 
+use Irelance\Mozjs34\Helper\Operation;
 use Irelance\Mozjs34\Helper\Reveal;
+use Irelance\Mozjs34\Helper\Stack;
 
 class Context
 {
     use Reveal;
+    use Operation;
+
+    public $index = null;
+
+    protected $content = '';
+    protected $stack = [];
+
     protected $summaries = [];
     protected $operations = [];
     protected $nodes = [];
@@ -60,9 +69,9 @@ class Context
 
     public function addRegexp($source, $flagsword)
     {
-        $this->regexps[]=[
-            'source'=>$source,
-            'flagsword'=>$flagsword,
+        $this->regexps[] = [
+            'source' => $source,
+            'flagsword' => $flagsword,
         ];
     }
 
@@ -84,5 +93,29 @@ class Context
     public function getSummary($key)
     {
         return $this->summaries[$key];
+    }
+
+    /**
+     * @param $stack Stack|array
+     */
+    public function pushStack($stack)
+    {
+        if (is_array($stack)) {
+            $stack = new Stack($stack);
+        }
+        array_push($this->stack, $stack);
+    }
+
+    /**
+     * @return Stack
+     */
+    public function popStack()
+    {
+        return array_pop($this->stack);
+    }
+
+    public function writeScript($string)
+    {
+        $this->content .= $string;
     }
 }

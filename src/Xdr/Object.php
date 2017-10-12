@@ -60,11 +60,9 @@ trait Object
 
     protected function xdrCK_JSFunction()
     {
-        $funEnclosingScopeIndex = $this->todec();
-        $this->XDRInterpretedFunction();//todo get the information
-        return [
-            'funEnclosingScopeIndex' => $funEnclosingScopeIndex,
-        ];
+        return array_merge([
+            'funEnclosingScopeIndex' => $funEnclosingScopeIndex = $this->todec(),
+        ],$this->XDRInterpretedFunction());
     }
 
     public function xdrCK_JSObject()
