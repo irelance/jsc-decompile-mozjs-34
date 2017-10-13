@@ -75,7 +75,7 @@ trait Script
     {
         $end = $this->parseIndex + $context->getSummary('length');
         for (; $this->parseIndex < $end;) {
-            $context->addOperation($this->parserOperation());
+            $context->addOperation($this->parseIndex, $this->parserOperation());
         }
         $this->parseIndex = $end;
     }

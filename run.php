@@ -17,10 +17,10 @@ foreach ($contexts as $index => $context) {
         echo '==================================' . $index . '==================================S', CLIENT_EOL;
         /* @var \Irelance\Mozjs34\Context $context */
         $context->printProperties([
-            'Summaries',
-            'Content',
+            //'Summaries',
             'Operations',
-            'Nodes',
+            'Content',
+            //'Nodes',
             'Atoms',
             'Consts',
             'Objects',

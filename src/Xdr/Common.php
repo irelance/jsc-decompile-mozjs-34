@@ -48,6 +48,11 @@ trait Common
         return hexdec($result);
     }
 
+    protected function uInt32ToInt32($num)
+    {
+        return unpack('l',pack('L',$num))[1];
+    }
+
     public function xdrConst()
     {
         $type = $this->todec();

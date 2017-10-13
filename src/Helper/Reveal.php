@@ -27,9 +27,9 @@ trait Reveal
     public function printOperations()
     {
         echo '---------------Operations--------------', CLIENT_EOL;
-        foreach ($this->operations as $operation) {
+        foreach ($this->operations as $key => $operation) {
             $op = Constant::_Opcode[$operation['id']];
-            echo $op['op'], json_encode($operation['params']), ' pop: ', $operation['pop'], ' push: ', $operation['push'], CLIENT_EOL;
+            echo '[', $key, ']', $op['op'], json_encode($operation['params']), ' pop: ', $operation['pop'], ' push: ', $operation['push'], ' byte: ', $operation['length'], CLIENT_EOL;
         }
         echo '---------------------------------------', CLIENT_EOL;
     }
@@ -57,7 +57,7 @@ trait Reveal
         if (count($this->consts)) {
             echo '-----------------Consts----------------', CLIENT_EOL;
             foreach ($this->consts as $key => $const) {
-                echo $key, ' : [', $const['type'], ']',$const['value'], CLIENT_EOL;
+                echo $key, ' : [', $const['type'], ']', $const['value'], CLIENT_EOL;
             }
             echo '---------------------------------------', CLIENT_EOL;
         }
@@ -117,13 +117,122 @@ trait Reveal
         }
     }
 
-    public function printContent()
+    protected $offsets = [];
+
+    public function pushOffset($offset)
+    {
+        array_push($this->offsets, $offset);
+    }
+
+    public function popOffset()
+    {
+        return array_pop($this->offsets);
+    }
+
+    public function _printContent()
     {
         foreach ($this->operations as $operation) {
             $this->revealOperation($operation);
         }
+        if (count($this->offsets)) foreach ($this->offsets as $key => $offset) {
+            if (isset($this->storageScript[$offset['goto']])) {
+                if ($this->storageScript[$offset['goto']]['value'] == 'JSOP_LOOPHEAD') {
+                    $this->storageScript[$offset['goto']] = ['value' => $offset['value']];
+                } else {
+                    if (isset($this->storageScript[$offset['goto'] - 1])) {
+                        $this->storageScript[$offset['goto'] - 1]['value'] = $offset['value'] . $this->storageScript[$offset['goto'] - 1]['value'];
+                    } else {
+                        $this->storageScript[$offset['goto'] - 1] = ['value' => $offset['value']];
+                    }
+                }
+            } else {
+                $this->storageScript[$offset['goto'] - 1] = ['value' => $offset['value']];
+            }
+        }
+        ksort($this->storageScript);
+
+        $whileEntriesMove = [];
+        $scriptKeys = array_keys($this->storageScript);
+        $scriptKeysCount = count($scriptKeys);
+        for ($i = 0; $i < $scriptKeysCount; $i++) {
+            $script = $this->storageScript[$scriptKeys[$i]];
+            if ($script['value'] == 'JSOP_LOOPENTRY') {
+                $nextScript = $this->storageScript[$scriptKeys[$i + 1]];
+                if (substr($nextScript['value'], 0, 6) == 'while(') {
+                    $whileEntriesMove[] = ['type' => 'while', 'key' => $scriptKeys[$i + 1]];
+                } else {
+                }
+                unset($this->storageScript[$scriptKeys[$i]]);
+            } elseif ($script['value'] == '{') {
+                $whileEntriesMove[] = ['type' => '{', 'key' => $scriptKeys[$i]];
+            } elseif (substr($script['value'], 0, 6) == 'while(') {
+                if ($whileEntriesMove[count($whileEntriesMove) - 1]['key'] != $scriptKeys[$i]) {
+                    $this->storageScript[$scriptKeys[$i]]['value'] = '}' . $this->storageScript[$scriptKeys[$i]]['value'] . ';';
+                }
+            }
+        }
+        $whileEntriesMoveCount = count($whileEntriesMove);
+        for ($i = 0; $i < $whileEntriesMoveCount; $i++) {
+            $while = $whileEntriesMove[$i];
+            if ($while['type'] == 'while') {
+                for ($j = $i; $j >= 0; $j--) {
+                    if ($whileEntriesMove[$j]['type'] == '{') {
+                        break;
+                    }
+                }
+                $entry = $whileEntriesMove[$j];
+                $this->storageScript[$entry['key']]['value'] = $this->storageScript[$while['key']]['value'] . $this->storageScript[$entry['key']]['value'];
+                $whileEntriesMove[$j]['type'] = 'unset';
+                unset($this->storageScript[$while['key']]);
+            }
+        }
+        foreach ($whileEntriesMove as $item) {
+            if ($item['type'] == '{') {
+                $this->storageScript[$item['key']]['value'] = 'do{';
+            }
+        }
+
+        $scriptKeys = array_keys($this->storageScript);
+        $scriptKeysCount = count($scriptKeys);
         echo '----------------Content----------------', CLIENT_EOL;
-        echo $this->content, CLIENT_EOL;
+        for ($i = 0; $i < $scriptKeysCount; $i++) {
+            $script = $this->storageScript[$scriptKeys[$i]];
+            if ($script['value'] == '}else ') {
+                $nextScript = $this->storageScript[$scriptKeys[$i + 1]];
+                if (substr($nextScript['value'], 0, 3) != 'if(') {
+                    $script['value'] = '}else {';
+                }
+            }
+            echo '[', $scriptKeys[$i], ']', $script['value'], CLIENT_EOL;
+            //echo $script['value'], CLIENT_EOL;
+        }
+        echo CLIENT_EOL;
+        echo '---------------------------------------', CLIENT_EOL;
+    }
+
+    public function printContent()
+    {
+        foreach ($this->operations as $key => $operation) {
+            if (!$this->operations[$key]['isCover']) {
+                $this->revealOperation($operation);
+                $this->operations[$key]['isCover'] = true;
+            }
+        }
+
+        $scriptKeys = array_keys($this->storageScript);
+        $scriptKeysCount = count($scriptKeys);
+        echo '----------------Content----------------', CLIENT_EOL;
+        for ($i = 0; $i < $scriptKeysCount; $i++) {
+            $script = $this->storageScript[$scriptKeys[$i]];
+            if ($script['value'] == '}else ') {
+                $nextScript = $this->storageScript[$scriptKeys[$i + 1]];
+                if (substr($nextScript['value'], 0, 3) != 'if(') {
+                    $script['value'] = '}else {';
+                }
+            }
+            echo '[', $scriptKeys[$i], ']', $script['value'], CLIENT_EOL;
+            //echo $script['value'], CLIENT_EOL;
+        }
         echo '---------------------------------------', CLIENT_EOL;
     }
 }

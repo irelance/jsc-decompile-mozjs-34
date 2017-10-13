@@ -42,9 +42,9 @@ class Context
         return true;
     }
 
-    public function addOperation(array $operation)
+    public function addOperation($parserIndex, array $operation)
     {
-        $this->operations[] = $operation;
+        $this->operations[$parserIndex] = $operation;
     }
 
     public function addNode($node)
@@ -114,8 +114,10 @@ class Context
         return array_pop($this->stack);
     }
 
-    public function writeScript($string)
+    protected $storageScript = [];
+
+    public function writeScript($parserIndex, $string)
     {
-        $this->content .= $string;
+        $this->storageScript[$parserIndex] = ['value' => $string];
     }
 }
