@@ -40,6 +40,22 @@ trait Operation
         return $nextOperation;
     }
 
+    public function revealOperations($start, $end)
+    {
+        $operationKeys = array_keys($this->operations);
+        $operationKeysFlip = array_flip($operationKeys);
+        $start = $operationKeysFlip[$start];
+        $end = $operationKeysFlip[$end];
+        for ($i = $start + 1; $i < $end; $i++) {
+            echo $operationKeys[$i],"\n";
+            $operation = $this->operations[$operationKeys[$i]];
+            if (!$operation['isCover']) {
+                $this->revealOperation($operation);
+                $this->operations[$operationKeys[$i]]['isCover'] = true;
+            }
+        }
+    }
+
     public function revealOperation($operation)
     {
         $op = Constant::_Opcode[$operation['id']];
@@ -85,60 +101,21 @@ trait Operation
                 break;
             //control branch
             case 'JSOP_IFEQ':
-                $val = $this->popStack();
-                $this->writeScript($operation['parserIndex'], 'if(' . $val->getValue() . '){');
-                //$this->pushOffset(['goto' => $operation['parserIndex'] + $operation['params']['offset'], 'value' => '}']);
-                $this->pushBranchStack(['opcode' => 'JSOP_IFEQ']);
+                //todo storage stack for k=x?a:b
+                $stack = $this->stack;
+                $script = $this->popStack();
+                $this->writeScript($operation['parserIndex'], 'if(' . $script->getValue() . '){');
+                $elseStart = $this->gotoNextOperation($operation);
+                $this->revealOperations($operation['parserIndex'], $elseStart['parserIndex']);
+                $this->writeScript($elseStart['parserIndex'], '} else');
                 break;
             case 'JSOP_TABLESWITCH':
                 //case type is int
-                $val = $this->popStack();
-                $this->writeScript($operation['parserIndex'], 'switch(' . $val->getValue() . '){');
-                $caseCurrent = $operation['params']['low'];
-                foreach ($operation['params']['offset'] as $offset) {
-                    if ($offset) {
-                        $this->pushOffset(['goto' => $operation['parserIndex'] + $offset, 'value' => 'case ' . $caseCurrent . ':']);
-                    }
-                    $caseCurrent++;
-                }
-                $this->pushOffset(['goto' => $operation['parserIndex'] + $operation['params']['len'], 'value' => 'default:']);
                 break;
             //control loop
             case 'JSOP_IFNE':
-                $val = $this->popStack();
-                $this->writeScript($operation['parserIndex'], 'while(' . $val->getValue() . ')');
-                $this->pushOffset(['goto' => $operation['parserIndex'] + $operation['params']['offset'], 'value' => $operation['params']['offset'] > 0 ? '}' : '{']);
                 break;
             case 'JSOP_GOTO':
-                $nextOperation = $operation;
-                do {
-                    $goto = $nextOperation['parserIndex'] + $nextOperation['params']['offset'];
-                    if (!isset($this->operations[$goto])) {
-                        exit('operation not found');
-                    }
-                    $nextOperation = $this->operations[$goto];
-                    $nextOp = Constant::_Opcode[$nextOperation['id']];
-                } while ($nextOp['op'] == 'JSOP_GOTO');
-                $branch = $this->popBranchStack();
-                if ($branch) {
-                    switch ($branch['opcode']) {
-                        case 'JSOP_IFEQ':
-                            echo $goto, ' ', $nextOp['op'];
-                            switch ($nextOp['op']) {
-                                case 'JSOP_LOOPENTRY':
-                                    $this->writeScript($operation['parserIndex'], 'continue;');
-                                    return;
-                                default:
-                                    $this->writeScript($operation['parserIndex'], '}else ');
-                                    break;
-                            }
-                            break;
-                        case 'JSOP_TABLESWITCH':
-                            $this->writeScript($operation['parserIndex'], 'break;');
-                            break;
-                    }
-                }
-                $this->pushOffset(['goto' => $operation['parserIndex'] + $operation['params']['offset'], 'value' => $operation['params']['offset'] > 0 ? '}' : '{']);
                 break;
             case 'JSOP_LOOPHEAD':
                 $this->writeScript($operation['parserIndex'], 'JSOP_LOOPHEAD');
