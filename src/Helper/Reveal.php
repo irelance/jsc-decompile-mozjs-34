@@ -117,6 +117,55 @@ trait Reveal
         }
     }
 
+    protected function contentPreTreat()
+    {
+        $whileEntriesMove = [];
+        $scriptKeys = array_keys($this->storageScript);
+        $scriptKeysCount = count($scriptKeys);
+        for ($i = 0; $i < $scriptKeysCount; $i++) {
+            $script = $this->storageScript[$scriptKeys[$i]];
+            if ($script['value'] == 'JSOP_LOOPENTRY') {
+                $nextScript = $this->storageScript[$scriptKeys[$i + 1]];
+                if (substr($nextScript['value'], 0, 6) == 'while(') {
+                    $whileEntriesMove[] = ['type' => 'while', 'key' => $scriptKeys[$i + 1]];
+                }
+                unset($this->storageScript[$scriptKeys[$i]]);
+            } elseif ($script['value'] == '{') {
+                $whileEntriesMove[] = ['type' => '{', 'key' => $scriptKeys[$i]];
+            } elseif (substr($script['value'], 0, 6) == 'while(') {
+                if ($whileEntriesMove[count($whileEntriesMove) - 1]['key'] != $scriptKeys[$i]) {
+                    $this->storageScript[$scriptKeys[$i]]['value'] = '}' . $this->storageScript[$scriptKeys[$i]]['value'] . ';';
+                }
+            } elseif ($script['value'] == 'else') {
+                $nextScript = $this->storageScript[$scriptKeys[$i + 1]];
+                if (substr($nextScript['value'], 0, 3) != 'if(') {
+                    $this->storageScript[$scriptKeys[$i]]['value'] .= '{';
+                }
+            }
+        }
+        $whileEntriesMoveCount = count($whileEntriesMove);
+        for ($i = 0; $i < $whileEntriesMoveCount; $i++) {
+            $while = $whileEntriesMove[$i];
+            if ($while['type'] == 'while') {
+                for ($j = $i; $j >= 0; $j--) {
+                    if ($whileEntriesMove[$j]['type'] == '{') {
+                        break;
+                    }
+                }
+                $entry = $whileEntriesMove[$j];
+                $this->storageScript[$entry['key']]['value'] = $this->storageScript[$while['key']]['value'] . $this->storageScript[$entry['key']]['value'];
+                $whileEntriesMove[$j]['type'] = 'unset';
+                unset($this->storageScript[$while['key']]);
+                $this->writeScriptEndings($while['key'] / 2, '}');
+            }
+        }
+        foreach ($whileEntriesMove as $item) {
+            if ($item['type'] == '{') {
+                $this->storageScript[$item['key']]['value'] = 'do{';
+            }
+        }
+    }
+
     public function printContent()
     {
         foreach ($this->operations as $key => $operation) {
@@ -126,13 +175,15 @@ trait Reveal
             }
         }
         ksort($this->storageScript);
+        $this->contentPreTreat();
 
+        ksort($this->storageScript);
         $scriptKeys = array_keys($this->storageScript);
         $scriptKeysCount = count($scriptKeys);
         echo '----------------Content----------------', CLIENT_EOL;
         for ($i = 0; $i < $scriptKeysCount; $i++) {
             $script = $this->storageScript[$scriptKeys[$i]];
-            echo '[', $scriptKeys[$i], ']', $script['value'], CLIENT_EOL;
+            echo '[', $scriptKeys[$i] / 2, ']', $script['value'], CLIENT_EOL;
             //echo $script['value'], CLIENT_EOL;
         }
         echo '---------------------------------------', CLIENT_EOL;

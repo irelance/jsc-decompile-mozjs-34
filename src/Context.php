@@ -118,11 +118,30 @@ class Context
 
     public function writeScript($parserIndex, $string)
     {
-        $this->storageScript[$parserIndex] = ['value' => $string];
+        $this->storageScript[$parserIndex * 2] = ['value' => $string];
+    }
+
+    public function getScript($parserIndex)
+    {
+        return $this->storageScript[$parserIndex * 2];
+    }
+
+    public function writeScriptEndings($parserIndex, $ending = '}')
+    {
+        if (isset($this->storageScript[$parserIndex * 2 - 1])) {
+            $this->storageScript[$parserIndex * 2 - 1]['value'] .= $ending;
+            return;
+        }
+        $this->storageScript[$parserIndex * 2 - 1] = ['value' => $ending];
+    }
+
+    public function dropScriptEndings($parserIndex)
+    {
+        unset($this->storageScript[$parserIndex * 2 - 1]);
     }
 
     public function dropScript($parserIndex)
     {
-        unset($this->storageScript[$parserIndex]);
+        unset($this->storageScript[$parserIndex * 2]);
     }
 }

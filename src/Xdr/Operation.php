@@ -17,6 +17,7 @@ trait Operation
         $op = Constant::_Opcode[$this->bytecodes[$this->parseIndex]];
         $result = [
             'id' => $op['val'],
+            'name' => $op['op'],
             'parserIndex' => $this->parseIndex,
             'params' => [],
             'length' => $op['len'],
