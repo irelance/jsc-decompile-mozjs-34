@@ -125,18 +125,13 @@ trait Reveal
                 $this->operations[$key]['isCover'] = true;
             }
         }
+        ksort($this->storageScript);
 
         $scriptKeys = array_keys($this->storageScript);
         $scriptKeysCount = count($scriptKeys);
         echo '----------------Content----------------', CLIENT_EOL;
         for ($i = 0; $i < $scriptKeysCount; $i++) {
             $script = $this->storageScript[$scriptKeys[$i]];
-            if ($script['value'] == '}else ') {
-                $nextScript = $this->storageScript[$scriptKeys[$i + 1]];
-                if (substr($nextScript['value'], 0, 3) != 'if(') {
-                    $script['value'] = '}else {';
-                }
-            }
             echo '[', $scriptKeys[$i], ']', $script['value'], CLIENT_EOL;
             //echo $script['value'], CLIENT_EOL;
         }

@@ -120,4 +120,9 @@ class Context
     {
         $this->storageScript[$parserIndex] = ['value' => $string];
     }
+
+    public function dropScript($parserIndex)
+    {
+        unset($this->storageScript[$parserIndex]);
+    }
 }

@@ -16,16 +16,16 @@ use Irelance\Mozjs34\Constant;
  */
 trait Operation
 {
-    protected $branchStacks = [];
+    protected $controlStacks = [];
 
-    protected function popBranchStack()
+    protected function popControlStack()
     {
-        return array_pop($this->branchStacks);
+        return array_pop($this->controlStacks);
     }
 
-    protected function pushBranchStack($branch)
+    protected function pushControlStack($type, $extra = [])
     {
-        array_push($this->branchStacks, $branch);
+        array_push($this->controlStacks, array_merge($extra, ['type' => $type]));
     }
 
     protected function gotoNextOperation($nextOperation)
@@ -47,7 +47,9 @@ trait Operation
         $start = $operationKeysFlip[$start];
         $end = $operationKeysFlip[$end];
         for ($i = $start + 1; $i < $end; $i++) {
-            echo $operationKeys[$i],"\n";
+
+            echo $operationKeys[$i], "\n";//todo remove this debug script
+
             $operation = $this->operations[$operationKeys[$i]];
             if (!$operation['isCover']) {
                 $this->revealOperation($operation);
@@ -99,23 +101,57 @@ trait Operation
                 $left = $this->popStack();
                 $this->pushStack(['value' => $left->getValue() . '+' . $right->getValue(), 'type' => 'script']);
                 break;
+            //control goto
+            case 'JSOP_GOTO':
+                $controlStack = $this->popControlStack();
+
+                switch ($controlStack['type']) {
+                    case 'if-normal':
+                        $this->writeScript($operation['parserIndex'] + $operation['params']['offset'], '}');
+                        break;
+                    case 'if-ternary':
+                        break;
+                    default:
+                        if (!is_null($controlStack)) {
+                            $this->pushControlStack($controlStack['type'], $controlStack);
+                        }
+                }
+                break;
             //control branch
             case 'JSOP_IFEQ':
-                //todo storage stack for k=x?a:b
-                $stack = $this->stack;
                 $script = $this->popStack();
+                //storage stack for k=x?a:b
+                $stack = $this->stack;
                 $this->writeScript($operation['parserIndex'], 'if(' . $script->getValue() . '){');
                 $elseStart = $this->gotoNextOperation($operation);
                 $this->revealOperations($operation['parserIndex'], $elseStart['parserIndex']);
                 $this->writeScript($elseStart['parserIndex'], '} else');
+                $oldCount = count($stack);
+                $newCount = count($this->stack);
+                if ($oldCount != $newCount) {
+                    if (($newCount - $oldCount) == 1) {
+                        $this->dropScript($operation['parserIndex']);
+                        $this->dropScript($elseStart['parserIndex']);
+                        $left = $this->popStack();
+                        $this->pushControlStack('if-ternary');
+                        $name = $this->popStack();
+                        $this->writeScript($operation['parserIndex'], $script->getValue() . '?' . $name->value . '=' . $left->getValue() . ':');
+                        $this->stack = $stack;
+                    } else {
+                        $this->writeScript($operation['parserIndex'] - 1, '[error] JSOP_IFEQ');
+                        $this->stack = $stack;
+                    }
+                } else {
+                    $this->pushControlStack('if-normal');
+                }
                 break;
             case 'JSOP_TABLESWITCH':
                 //case type is int
                 break;
             //control loop
             case 'JSOP_IFNE':
-                break;
-            case 'JSOP_GOTO':
+                $script = $this->popStack();
+                $this->writeScript($operation['parserIndex'], 'while(' . $script->getValue() . ')');
                 break;
             case 'JSOP_LOOPHEAD':
                 $this->writeScript($operation['parserIndex'], 'JSOP_LOOPHEAD');
