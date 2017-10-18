@@ -180,6 +180,8 @@ trait Script
         $index = count($this->contexts);
         $this->contexts[] = $context;
         $context->index = $index;
+        $this->parseScriptIndex = $index;
+        $context->decompile = $this;
         $this->parserHeader($context);
         $this->parserScript($context);
         $this->parserSrcNodes($context);

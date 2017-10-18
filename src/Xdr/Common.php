@@ -50,7 +50,17 @@ trait Common
 
     protected function uInt32ToInt32($num)
     {
-        return unpack('l',pack('L',$num))[1];
+        return unpack('l', pack('L', $num))[1];
+    }
+
+    protected function uIntToInt($num, $bit)
+    {
+        $half = 1 << ($bit - 1);
+        if ($num <= $half) {
+            return $num;
+        }
+        $max = (1 << $bit) - 1;
+        return -(($num - 1) ^ $max);
     }
 
     public function xdrConst()
@@ -110,7 +120,7 @@ trait Common
             $result['type'] = 'lazy';
         } else {
             $result['type'] = 'block';
-            $result['context'] = $this->XDRScript();
+            $result['contextIndex'] = $this->XDRScript()->index;
         }
         return $result;
     }

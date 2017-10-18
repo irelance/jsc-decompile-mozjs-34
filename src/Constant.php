@@ -19,17 +19,17 @@ define('JSID_TYPE_VOID', 0x2);
 define('JSID_TYPE_SYMBOL', 0x4);
 define('JSID_TYPE_MASK', 0x7);
 
-define("js_undefined_str", "__undefined__");
-define("js_typeof_str", "__typeof__");
-define("js_void_str", "__void__");
-define("js_null_str", "__null__");
-define("js_false_str", "__false__");
-define("js_true_str", "__true__");
-define("js_throw_str", "__throw__");
-define("js_in_str", "__in__");
-define("js_instanceof_str", "__instanceof__");
-define("js_this_str", "__this__");
-define("js_new_str", "__new__");
+define("js_undefined_str", "undefined");
+define("js_typeof_str", "typeof");
+define("js_void_str", "void");
+define("js_null_str", "null");
+define("js_false_str", "false");
+define("js_true_str", "true");
+define("js_throw_str", "throw");
+define("js_in_str", "in");
+define("js_instanceof_str", "instanceof");
+define("js_this_str", "this");
+define("js_new_str", "new");
 
 class Constant
 {

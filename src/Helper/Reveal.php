@@ -137,6 +137,10 @@ trait Reveal
                     $this->storageScript[$scriptKeys[$i]]['value'] = '}' . $this->storageScript[$scriptKeys[$i]]['value'] . ';';
                 }
             } elseif ($script['value'] == 'else') {
+                if (!isset($scriptKeys[$i + 1]) || !isset($this->storageScript[$scriptKeys[$i + 1]])) {
+                    $this->storageScript[$scriptKeys[$i]]['value'] = '';
+                    continue;
+                }
                 $nextScript = $this->storageScript[$scriptKeys[$i + 1]];
                 if (substr($nextScript['value'], 0, 3) != 'if(') {
                     $this->storageScript[$scriptKeys[$i]]['value'] .= '{';

@@ -128,7 +128,7 @@ trait Operation
                 $result['params']['localno'] = $this->bigEndian2Dec(3);
                 break;
             case 'JSOP_INT8':
-                $result['params']['val'] = $this->bigEndian2Dec(1);
+                $result['params']['val'] = $this->uIntToInt($this->bigEndian2Dec(1), 8);
                 break;
             case 'JSOP_UINT16':
                 $result['params']['val'] = $this->bigEndian2Dec(2);
@@ -137,7 +137,7 @@ trait Operation
                 $result['params']['val'] = $this->bigEndian2Dec(3);
                 break;
             case 'JSOP_INT32':
-                $result['params']['val'] = $this->bigEndian2Dec(4);
+                $result['params']['val'] = $this->uInt32ToInt32($this->bigEndian2Dec(4));
                 break;
             case 'JSOP_NEWINIT':
                 $result['params']['kind'] = $this->bigEndian2Dec(1);

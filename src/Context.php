@@ -18,6 +18,7 @@ class Context
     use Operation;
 
     public $index = null;
+    public $decompile = null;
 
     protected $content = '';
     protected $stack = [];

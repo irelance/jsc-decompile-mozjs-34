@@ -11,6 +11,8 @@
  */
 namespace Irelance\Mozjs34;
 
+use Irelance\Mozjs34\Helper\Stack;
+
 class Decompile
 {
     use Xdr\Common;
@@ -74,5 +76,38 @@ class Decompile
     public function getContexts()
     {
         return $this->contexts;
+    }
+
+    protected $localVariable = [];
+
+    public function setLocalVariable($index, $value)
+    {
+        $this->localVariable[$index] = $value;
+    }
+
+    public function getLocalVariable($index)
+    {
+        if (!isset($this->localVariable[$index])) {
+            return new Stack(['type' => 'undefined', 'value' => 'undefined']);
+        }
+        return $this->localVariable[$index];
+    }
+
+    protected $aliasedVariable = [];
+
+    public function setAliasedVariable($hops, $slot, $value)
+    {
+        if (!isset($this->aliasedVariable[$hops])) {
+            $this->aliasedVariable[$hops] = [];
+        }
+        $this->aliasedVariable[$hops][$slot] = $value;
+    }
+
+    public function getAliasedVariable($hops, $slot)
+    {
+        if (!isset($this->aliasedVariable[$hops][$slot])) {
+            return new Stack(['type' => 'undefined', 'value' => 'undefined']);
+        }
+        return $this->aliasedVariable[$hops][$slot];
     }
 }
