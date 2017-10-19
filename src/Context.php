@@ -117,9 +117,9 @@ class Context
 
     protected $storageScript = [];
 
-    public function writeScript($parserIndex, $string)
+    public function writeScript($parserIndex, $string, $offset = 0)
     {
-        $this->storageScript[$parserIndex * 2] = ['value' => $string];
+        $this->storageScript[$parserIndex * 2 + $offset] = ['value' => $string];
     }
 
     public function getScript($parserIndex)

@@ -98,8 +98,7 @@ trait Operation
 
     public function revealOperation($operation, $conditons = [])
     {
-        $op = Constant::_Opcode[$operation['id']];
-        switch ($op['op']) {
+        switch ($operation['name']) {
             case 'JSOP_RETRVAL':
             case 'JSOP_ENDINIT':
             case 'JSOP_NOP':
@@ -112,8 +111,8 @@ trait Operation
             case 'JSOP_POP':
             case 'JSOP_SETRVAL':
                 $rVal = $this->popStack();
-                if ($rVal) {
-                    $this->writeScript($operation['parserIndex'], $rVal->getValue() . ';');
+                if ($rVal && $script = $rVal->getScript()) {
+                    $this->writeScript($operation['parserIndex'], $script . ';');
                 }
                 break;
             case 'JSOP_POPN':
@@ -178,12 +177,12 @@ trait Operation
             case 'JSOP_URSH':
                 $right = $this->popStack();
                 $left = $this->popStack();
-                $this->pushStack(['value' => '(' . $left->getValue() . $operation['image'] . $right->getValue() . ')', 'type' => 'script']);
+                $this->pushStack(['script' => '(' . $left->getValue() . $operation['image'] . $right->getValue() . ')', 'type' => 'script']);
                 break;
             case 'JSOP_BITNOT':
             case 'JSOP_NEG':
                 $val = $this->popStack();
-                $this->pushStack(['value' => '(' . $operation['image'] . $val->getValue() . ')', 'type' => 'script']);
+                $this->pushStack(['script' => '(' . $operation['image'] . $val->getValue() . ')', 'type' => 'script']);
                 break;
             case 'JSOP_POS':
                 break;
@@ -298,7 +297,6 @@ trait Operation
                 $val = $this->popStack();
                 $switch = $this->popStack();
                 $contentIndex = $operation['parserIndex'] + $operation['params']['offset'];
-                //var_dump($switch);
                 if (!isset($switch->value[$contentIndex])) {
                     $switch->value[$contentIndex] = [];
                 }
@@ -326,12 +324,12 @@ trait Operation
                 $this->pushStack($val);
                 break;
             case 'JSOP_ITERNEXT':
-                $this->pushStack(['type' => 'script', 'value' => '@iternext']);
+                $this->pushStack(['type' => 'script', 'name' => '_iternext']);
                 break;
             case 'JSOP_MOREITER':
                 $val = $this->popStack();
                 $this->pushStack([]);
-                $this->pushStack(['type' => 'script', 'value' => $val->value . ' has @iternext']);
+                $this->pushStack(['type' => 'script', 'script' => $val->getValue() . ' has _iternext']);
                 break;
             case 'JSOP_ENDITER':
                 $val = $this->popStack();
@@ -348,7 +346,7 @@ trait Operation
             case 'JSOP_IN':
                 $right = $this->popStack();
                 $left = $this->popStack();
-                $this->pushStack(['value' => $left->getValue() . ' ' . $operation['image'] . ' ' . $right->getValue(), 'type' => 'script']);
+                $this->pushStack(['script' => '(' . $left->getValue() . ' ' . $operation['image'] . ' ' . $right->getValue() . ')', 'type' => 'script']);
                 break;
             case 'JSOP_OR':
                 $script = $this->popStack();
@@ -371,15 +369,16 @@ trait Operation
             case 'JSOP_TYPEOF':
             case 'JSOP_TYPEOFEXPR':
                 $name = $this->popStack();
-                $this->pushStack(['value' => 'typeof ' . $name->getValue(), 'type' => 'script']);
+                $this->pushStack(['script' => 'typeof ' . $name->getValue(), 'type' => 'script']);
                 break;
             //instanceof
             case 'JSOP_INSTANCEOF':
                 $rVal = $this->popStack();
                 $lVal = $this->popStack();
-                $this->pushStack(['value' => $lVal->getValue() . ' instanceof ' . $rVal->getValue(), 'type' => 'script']);
+                $this->pushStack(['script' => $lVal->getValue() . ' instanceof ' . $rVal->getValue(), 'type' => 'script']);
                 break;
             //Function
+            case 'JSOP_NEW':
             case 'JSOP_FUNAPPLY'://apply
             case 'JSOP_FUNCALL'://call
             case 'JSOP_EVAL'://eval
@@ -391,10 +390,12 @@ trait Operation
                 }
                 $_this = $this->popStack();
                 $_callee = $this->popStack();
-                if ($_callee->type == 'function') {
-                    $_callee->value = '(' . $_callee->value . ')';
+                $write = '';
+                if ($operation['name'] == 'JSOP_NEW') {
+                    $write = 'new ';
                 }
-                $write = $_callee->value . '(';
+                $write .= $_callee->name ? $_callee->name : ('(' . $_callee->getScript() . ')');
+                $write .= '(';
                 if ($_argc) {
                     for ($i = $_argc - 1; $i >= 0; $i--) {
                         $write .= $_argv[$i]->getValue() . ',';
@@ -402,75 +403,84 @@ trait Operation
                     $write = substr($write, 0, strlen($write) - 1);
                 }
                 $write .= ')';
-                $this->pushStack(['type' => 'script', 'value' => $write]);
-                break;
-            case 'JSOP_NEW':
-                $_argc = $operation['params']['argc'];
-                $_argv = [];
-                for ($i = 0; $i < $_argc; $i++) {
-                    $_argv[] = $this->popStack();
-                }
-                $_this = $this->popStack();
-                $_callee = $this->popStack();
-                $write = 'new ' . $_callee->value . '(';
-                if ($_argc) {
-                    for ($i = $_argc - 1; $i >= 0; $i--) {
-                        $write .= $_argv[$i]->getValue() . ',';
-                    }
-                    $write = substr($write, 0, strlen($write) - 1);
-                }
-                $write .= ');';
-                $this->pushStack(['value' => $write, 'type' => 'script']);
+                $this->pushStack(['type' => 'script', 'script' => $write]);
                 break;
             //Object
             case 'JSOP_NEWINIT':
-                $this->pushStack(['isJson' => true, 'value' => [], 'type' => 'object']);
+                $this->pushStack(['value' => [], 'type' => 'object']);
                 break;
             case 'JSOP_INITPROP':
                 $name = $this->atoms[$operation['params']['nameIndex']];
                 $val = $this->popStack();
                 $array = $this->popStack();
-                $array->value[$name] = $val->value;
+                $array->value[$name] = $val;
                 $this->pushStack($array);
+                break;
+            case 'JSOP_DELPROP':
+                $obj = $this->popStack();
+                $this->pushStack(['type' => 'script', 'script' => 'delete ' . $obj->getValue() . '.' . $this->atoms[$operation['params']['nameIndex']]]);
+                break;
+            case 'JSOP_SETPROP':
+                $value = $this->getLogicValue($this->popStack());
+                $name = $this->popStack();
+                $this->pushStack(['type' => 'script', 'script' => $name->getValue() . '.' . $this->atoms[$operation['params']['nameIndex']] . '=' . $value]);
+                break;
+            case 'JSOP_GETPROP':
+                $obj = $this->popStack();
+                $this->pushStack(['name' => $obj->getValue() . '.' . $this->atoms[$operation['params']['nameIndex']]]);
+                break;
+            case 'JSOP_CALLPROP':
+                $name = $this->popStack();
+                $this->pushStack(['name' => $name->getValue() . '.' . $this->atoms[$operation['params']['nameIndex']]]);
                 break;
             case 'JSOP_INITELEM':
             case 'JSOP_INITELEM_INC':
                 $val = $this->popStack();
                 $name = $this->popStack();
                 $array = $this->popStack();
-                $array->value[$name->value] = $val->value;
+                $array->value[$name->getValue()] = $val;
                 $this->pushStack($array);
+                break;
+            case 'JSOP_DELELEM':
+                $propval = $this->popStack();
+                $obj = $this->popStack();
+                $this->pushStack(['type' => 'script', 'script' => 'delete ' . $obj->getValue() . '[' . $propval->getValue() . ']']);
                 break;
             case 'JSOP_SETELEM':
                 $value = $this->getLogicValue($this->popStack());
                 $propval = $this->popStack();
                 $obj = $this->popStack();
-                $this->pushStack(['type' => 'script', 'value' => $obj->value . '[' . $propval->getValue() . ']=' . $value]);
+                $this->pushStack(['type' => 'script', 'script' => $obj->getValue() . '[' . $propval->getValue() . ']=' . $value]);
                 break;
-            case 'JSOP_CALLPROP':
-                $name = $this->popStack();
-                var_dump($name);
-                $this->pushStack(['type' => 'script', 'value' => $name->value . '.' . $this->atoms[$operation['params']['nameIndex']]]);
+            case 'JSOP_GETELEM':
+                $propval = $this->popStack();
+                $obj = $this->popStack();
+                $this->pushStack(['name' => $obj->getValue() . '[' . $propval->getValue() . ']']);
+                break;
+            case 'JSOP_CALLELEM':
+                $propval = $this->popStack();
+                $obj = $this->popStack();
+                $this->pushStack(['name' => $obj->getValue() . '[' . $propval->getValue() . ']']);
                 break;
             //Array
             case 'JSOP_NEWARRAY':
-                $this->pushStack(['isJson' => true, 'value' => [], 'type' => 'object']);
+                $this->pushStack(['value' => [], 'type' => 'array']);
                 break;
             case 'JSOP_INITELEM_ARRAY':
                 $val = $this->popStack();
                 $array = $this->popStack();
-                $array->value[] = $val->value;
+                $array->value[] = $val;
                 $this->pushStack($array);
                 break;
             case 'JSOP_LENGTH':
                 $name = $this->popStack();
-                $this->pushStack(['type' => 'script', 'value' => $name->value . '.length']);
+                $this->pushStack(['type' => 'script', 'script' => $name->getValue() . '.length']);
                 break;
-            //压入变量 ['isJson'=>false,'value'=>'xxxx']
+            //压入变量
             case 'JSOP_NAME':
             case 'JSOP_BINDNAME':
             case 'JSOP_IMPLICITTHIS':
-                $this->pushStack(['value' => $this->atoms[$operation['params']['nameIndex']], 'type' => '__var__']);
+                $this->pushStack(['name' => $this->atoms[$operation['params']['nameIndex']]]);
                 break;
             //定义变量
             case 'JSOP_DEFVAR':
@@ -485,10 +495,10 @@ trait Operation
                 break;
             //定义常量 ['isJson'=>false,'value'=>'xxxx']
             case 'JSOP_TRUE':
-                $this->pushStack(['value' => 'true', 'type' => 'true']);
+                $this->pushStack(['value' => 'true', 'type' => 'boolean']);
                 break;
             case 'JSOP_FALSE':
-                $this->pushStack(['value' => 'false', 'type' => 'false']);
+                $this->pushStack(['value' => 'false', 'type' => 'boolean']);
                 break;
             case 'JSOP_NULL':
                 $this->pushStack(['value' => 'null', 'type' => 'null']);
@@ -514,37 +524,45 @@ trait Operation
                 $this->pushStack(['value' => $this->consts[$operation['params']['constIndex']]['value'], 'type' => 'number']);
                 break;
             case 'JSOP_STRING':
-                $this->pushStack(['isJson' => true, 'value' => $this->atoms[$operation['params']['atomIndex']], 'type' => 'string']);
+                $this->pushStack(['value' => $this->atoms[$operation['params']['atomIndex']], 'type' => 'string']);
                 break;
             case 'JSOP_REGEXP':
                 $this->pushStack(['value' => '/' . $this->regexps[$operation['params']['regexpIndex']]['source'] . '/', 'type' => 'regexp']);
                 break;
             case 'JSOP_OBJECT'://todo
-                $this->pushStack(['isJson' => true, 'value' => [], 'type' => 'object']);
+                $this->pushStack(['value' => [], 'type' => 'object']);
                 break;
             case 'JSOP_LAMBDA_ARROW':
-                $val = $this->popStack();
+                $_this = $this->popStack();
                 $object = $this->objects[$operation['params']['funcIndex']];
-                $this->pushStack(['value' => '() => { __INDEX_' . $object['contextIndex'] . '__ }', 'type' => 'function']);
+                $this->pushStack(['value' => $object['contextIndex'], 'type' => 'function']);
                 break;
             case 'JSOP_LAMBDA':
                 $object = $this->objects[$operation['params']['funcIndex']];
-                $this->pushStack(['value' => 'function ' . $object['name'] . '(){ __INDEX_' . $object['contextIndex'] . '__ }', 'type' => 'function']);
+                $this->pushStack(['value' => $object['contextIndex'], 'type' => 'function']);
                 break;
             //赋值
             case 'JSOP_SETNAME':
                 $value = $this->getLogicValue($this->popStack());
                 $name = $this->popStack();
-                $this->pushStack(['value' => $name->value . ' = ' . $value, 'type' => 'script']);
+                $name->value = $value;
+                $name->script = $name->getValue() . ' = ' . $value;
+                $name->type = 'script';
+                $this->pushStack($name);
                 break;
             case 'JSOP_SETCONST':
                 $value = $this->getLogicValue($this->popStack());
                 $name = $this->atoms[$operation['params']['nameIndex']];
-                $this->pushStack(['value' => $name->value . ' = ' . $value, 'type' => 'script']);
+                $this->pushStack([
+                    'type' => 'script',
+                    'name' => $name->value,
+                    'value' => $value,
+                    'script' => $name->value . ' = ' . $value,
+                ]);
                 break;
             //delete
             case 'JSOP_DELNAME':
-                $this->pushStack(['type' => 'script', 'value' => 'delete ' . $this->atoms[$operation['params']['nameIndex']]]);
+                $this->pushStack(['type' => 'script', 'script' => 'delete ' . $this->atoms[$operation['params']['nameIndex']]]);
                 break;
             //todo list
             //Other
@@ -564,19 +582,23 @@ trait Operation
             case 'JSOP_CALLEE':
                 $this->pushStack([]);
                 break;
-            case 'JSOP_REST':
-                $this->pushStack([]);
-                break;
             case 'JSOP_ARGUMENTS':
-                $this->pushStack([]);
+                $this->pushStack(['name' => 'arguments']);
                 break;
-            case 'JSOP_GETARG':
-                //todo try to get arguments
-                $this->pushStack(['type' => 'script', 'value' => '__ARG_' . $operation['params']['argno'] . '__']);
+            case 'JSOP_REST':
+                $this->pushStack(['name' => 'rest']);
                 break;
             case 'JSOP_SETARG':
                 $val = $this->popStack();
-                $this->pushStack([]);
+                $this->pushStack([
+                    'type' => 'script',
+                    'name' => '__ARG_' . $operation['params']['argno'] . '__',
+                    'script' => '__ARG_' . $operation['params']['argno'] . '__ = ' . $val->getValue(),
+                ]);
+                break;
+            case 'JSOP_GETARG':
+                //todo try to get arguments
+                $this->pushStack(['name' => '__ARG_' . $operation['params']['argno'] . '__']);
                 break;
             //Array
             case 'JSOP_NEWARRAY_COPYONWRITE':
@@ -598,11 +620,6 @@ trait Operation
                 $val = $this->popStack();
                 $val = $this->popStack();
                 $this->pushStack([]);
-                break;
-            case 'JSOP_CALLELEM':
-                $propval = $this->popStack();
-                $obj = $this->popStack();
-                $this->pushStack(['type' => 'script', 'value' => $obj->value . '[' . $propval->getValue() . ']']);
                 break;
             case 'JSOP_GETXPROP':
                 $val = $this->popStack();
@@ -634,34 +651,11 @@ trait Operation
                 $this->pushStack([]);
                 break;
             case 'JSOP_NEWOBJECT':
-                $this->pushStack(['isJson' => true, 'value' => [], 'type' => 'object']);
-                break;
-            case 'JSOP_DELPROP':
-                $obj = $this->popStack();
-                $this->pushStack(['type' => 'script', 'value' => 'delete ' . $obj->value . '.' . $this->atoms[$operation['params']['nameIndex']]]);
-                break;
-            case 'JSOP_DELELEM':
-                $propval = $this->popStack();
-                $obj = $this->popStack();
-                $this->pushStack(['type' => 'script', 'value' => 'delete ' . $obj->value . '[' . $propval->getValue() . ']']);
-                break;
-            case 'JSOP_GETPROP':
-                $obj = $this->popStack();
-                $this->pushStack(['type' => 'script', 'value' => $obj->value . '.' . $this->atoms[$operation['params']['nameIndex']]]);
-                break;
-            case 'JSOP_SETPROP':
-                $value = $this->getLogicValue($this->popStack());
-                $name = $this->popStack();
-                $this->pushStack(['type' => 'script', 'value' => $name->value . '.' . $this->atoms[$operation['params']['nameIndex']] . '=' . $value]);
-                break;
-            case 'JSOP_GETELEM':
-                $propval = $this->popStack();
-                $obj = $this->popStack();
-                $this->pushStack(['type' => 'script', 'value' => $obj->value . '[' . $propval->getValue() . ']']);
+                $this->pushStack(['value' => [], 'type' => 'object']);
                 break;
             //This
             case 'JSOP_THIS':
-                $this->pushStack(['type' => 'script', 'value' => 'this']);
+                $this->pushStack(['name' => 'this']);
                 break;
             //Function
             case 'JSOP_SETCALL':
@@ -704,11 +698,18 @@ trait Operation
                 $this->pushStack($this->decompile->getLocalVariable($localno));
                 break;
             case 'JSOP_SETLOCAL'://todo
-                $value = $this->getLogicValue($this->popStack());
+                $raw = $this->popStack();
+                $value = $raw->name ?: $this->getLogicValue($raw);
                 $localno = $operation['params']['localno'];
-                $localVar = ['type' => 'localVar', 'value' => '_local' . $localno];
+                $name = '_local' . $localno;
+                $localVar = [
+                    'type' => 'script',
+                    'name' => $name,
+                    'value' => $value,
+                    'script' => $name . '=' . $value,
+                ];
                 $this->decompile->setLocalVariable($localno, $localVar);
-                $this->pushStack(['type' => 'script', 'value' => $localVar['value'] . '=' . $value]);
+                $this->pushStack($localVar);
                 break;
             //Generator
             case 'JSOP_GENERATOR':
@@ -743,8 +744,7 @@ trait Operation
                 $this->writeScript($operation['parserIndex'], '}catch(' . $exception['value'] . '){');
                 $this->pushStack($exception);
                 break;
-            case
-            'JSOP_DEBUGLEAVEBLOCK':
+            case 'JSOP_DEBUGLEAVEBLOCK':
                 $this->writeScript($operation['parserIndex'], '}
         ');
                 break;
@@ -801,7 +801,7 @@ trait Operation
             foreach ($content as $case) {
                 $caseWrite .= $case['value'];
             }
-            $this->writeScript($start, $caseWrite);
+            $this->writeScript($start, $caseWrite, -1);
             $this->revealOperations($start, $contentEndings[$i], ['type' => 'switch', 'defaultIndex' => $defaultIndex,]);
             $i++;
         }

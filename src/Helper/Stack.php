@@ -13,7 +13,9 @@ class Stack
 {
     public $isJson = false;
     public $type;
+    public $name;
     public $value;//raw input value
+    public $script;//raw input script
 
     public function __construct(array $props)
     {
@@ -24,9 +26,69 @@ class Stack
 
     public function getValue()
     {
-        if ($this->isJson) {
-            return json_encode($this->value);
+        if ($this->name) {
+            return $this->name;
         }
-        return $this->value;
+        return $this->getScript();
+    }
+
+    public function getScript()
+    {
+        if ($this->script) {
+            return $this->script;
+        }
+        $this->script = self::renderBase($this);
+        return $this->script;
+    }
+
+    public static function renderBase(self $input)
+    {
+        switch ($input->type) {
+            case 'script':
+                return $input->script;
+            case 'function':
+                return 'function () { __FUNC_' . $input->value . '__ }';
+            case 'string':
+                return '"' . $input->value . '"';
+            case 'object':
+                return self::renderObject($input->value);
+            case 'array':
+                return self::renderArray($input->value);
+            case 'number':
+            case 'boolean':
+            case 'null':
+            case 'undefined':
+            case 'regexp':
+        }
+        return $input->value;
+    }
+
+    public static function renderArray($array)
+    {
+        $result = '[';
+        foreach ($array as $item) {
+            $result .= self::renderBase($item) . ',';
+        }
+        $resultLen = strlen($result);
+        if ($resultLen>1) {
+            $result = substr($result, 0, $resultLen - 1);
+        }
+        $result .= ']';
+        return $result;
+    }
+
+    public static function renderObject($object)
+    {
+        $result = '{';
+        foreach ($object as $key => $value) {
+            $result .= $key . ':';
+            $result .= self::renderBase($value) . ',';
+        }
+        $resultLen = strlen($result);
+        if ($resultLen>1) {
+            $result = substr($result, 0, $resultLen - 1);
+        }
+        $result .= '}';
+        return $result;
     }
 }
