@@ -162,6 +162,7 @@ trait Operation
                 break;
             case 'JSOP_LOOPENTRY':
                 $result['params']['BITFIELD'] = $this->bigEndian2Dec(1);
+                $result['params']['depth'] = $result['params']['BITFIELD'] - 128;
                 break;
         }
         return $result;

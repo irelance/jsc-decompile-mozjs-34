@@ -122,27 +122,27 @@ class Context
         $this->storageScript[$parserIndex * 2 + $offset] = ['value' => $string];
     }
 
-    public function getScript($parserIndex)
+    public function appendScript($parserIndex, $string, $offset = 0)
     {
-        return $this->storageScript[$parserIndex * 2];
-    }
-
-    public function writeScriptEndings($parserIndex, $ending = '}')
-    {
-        if (isset($this->storageScript[$parserIndex * 2 - 1])) {
-            $this->storageScript[$parserIndex * 2 - 1]['value'] .= $ending;
+        if (!isset($this->storageScript[$parserIndex * 2 + $offset])) {
+            $this->writeScript($parserIndex, $string, $offset);
             return;
         }
-        $this->storageScript[$parserIndex * 2 - 1] = ['value' => $ending];
+        $this->storageScript[$parserIndex * 2 + $offset]['value'] .= $string;
     }
 
-    public function dropScriptEndings($parserIndex)
+    public function getScript($parserIndex, $offset = 0)
     {
-        unset($this->storageScript[$parserIndex * 2 - 1]);
+        if (!isset($this->storageScript[$parserIndex * 2 + $offset])) {
+            return ['value' => ''];
+        }
+        return $this->storageScript[$parserIndex * 2 + $offset];
     }
 
-    public function dropScript($parserIndex)
+    public function dropScript($parserIndex, $offset = 0)
     {
-        unset($this->storageScript[$parserIndex * 2]);
+        if (isset($this->storageScript[$parserIndex * 2 + $offset])) {
+            unset($this->storageScript[$parserIndex * 2 + $offset]);
+        }
     }
 }

@@ -81,16 +81,19 @@ trait Operation
         return false;
     }
 
-    protected function findFirstOperationIndex($name, $start = null, $end = null)
+    protected function findFirstOperation($name, $start = null, $end = null)
     {
+        if (is_string($name)) {
+            $name = [$name];
+        }
         $operationKeys = array_keys($this->operations);
         $operationKeysFlip = array_flip($operationKeys);
         $start = is_null($start) ? 0 : $operationKeysFlip[$start];
         $end = is_null($end) ? count($operationKeys) : $operationKeysFlip[$end];
         for ($i = $start; $i < $end; $i++) {
             $operation = $this->operations[$operationKeys[$i]];
-            if ($operation['name'] == $name) {
-                return $operationKeys[$i];
+            if (in_array($operation['name'], $name)) {
+                return $operation;
             }
         }
         return false;
@@ -193,43 +196,67 @@ trait Operation
                         $gotoIndex = $operation['parserIndex'] + $operation['params']['offset'];
                         if ($gotoIndex >= $conditons['defaultIndex']) {
                             $this->writeScript($operation['parserIndex'], 'break;');
-                            $this->storageScript[$gotoIndex * 2 + 1] = ['value' => '}'];
+                            $this->writeScript($gotoIndex, '}', +1);
                             return;
                         }
                     }
                 }
-                if ($operation['params']['offset'] < 0) {
-                    $nextOperation = $this->gotoNextOperation($operation);
-                    $nextOp = Constant::_Opcode[$nextOperation['id']];
-                    if ($nextOp['op'] == 'JSOP_LOOPENTRY') {
-                        $this->writeScript($operation['parserIndex'], 'continue;');
-                        return;
-                    }
-                }
+                $this->_getBranchContinue($operation) || $this->_getBranchBreak($operation);
                 break;
             //control branch
             case 'JSOP_IFEQ':
                 $value = $this->getLogicValue($this->popStack());
                 //storage stack for k=x?a:b
                 $stack = $this->stack;
-                $this->writeScript($operation['parserIndex'], 'if(' . $value . '){');
-                $elseStart = $this->gotoNextOperation($operation);
-                $this->revealOperations($operation['parserIndex'] + $operation['length'], $elseStart['parserIndex']);
-                $this->writeScriptEndings($operation['parserIndex'] + $operation['params']['offset'], '}');
-                $this->writeScript($elseStart['parserIndex'], 'else');
-                $oldCount = count($stack);
-                $newCount = count($this->stack);
-                if ($oldCount != $newCount) {
-                    try {
-                        if (($newCount - $oldCount) != 1) {
-                            throw new \Exception("[error] JSOP_IFEQ Unknown Type");
+                $this->appendScript($operation['parserIndex'], 'if(' . $value . '){');
+                if ($operation['params']['offset'] > 0) {
+                    $elseStart = $this->gotoNextOperation($operation);
+                    $this->revealOperations($operation['parserIndex'] + $operation['length'], $elseStart['parserIndex']);
+                    $gotoOperation = $this->_getBranchGoto($operation);
+                    while ($this->_getBranchContinue($gotoOperation) || $this->_getBranchBreak($gotoOperation)) {
+                        $gotoOperation = $this->findFirstOperation('JSOP_GOTO', $gotoOperation['parserIndex']);
+                        if (!$gotoOperation) {
+                            break;
                         }
+                    }
+                    $hasNextOperation = false;
+                    $nextOperationIndex = false;
+                    if ($gotoOperation) {
+                        $hasNextOperation = $gotoOperation['name'];
+                        $nextOperationIndex = $gotoOperation['parserIndex'];
+                        if ($elseIfOperation = $this->findFirstOperation(
+                            'JSOP_IFEQ',
+                            $gotoOperation['parserIndex'],
+                            $gotoOperation['parserIndex'] + $gotoOperation['params']['offset']
+                        )
+                        ) {
+                            $hasNextOperation = $elseIfOperation['name'];
+                            $nextOperationIndex = $elseIfOperation['parserIndex'];
+                        }
+                    }
+                    switch ($hasNextOperation) {
+                        case 'JSOP_IFEQ':
+                            $this->writeScript($nextOperationIndex, '} else ');
+                            break;
+                        case 'JSOP_GOTO':
+                            $this->writeScript($nextOperationIndex, '} else {');
+                        default:
+                            $this->appendScript($operation['parserIndex'] + $operation['params']['offset'], '}', +1);
+                            break;
+                    }
+                    $oldCount = count($stack);
+                    $newCount = count($this->stack);
+                    if ($oldCount != $newCount) {
+                        if (($newCount - $oldCount) != 1) {
+                            exit("[error] JSOP_IFEQ Unknown Type");
+                        }
+                        $this->dropScript($nextOperationIndex);
                         $this->dropScript($operation['parserIndex']);
-                        $this->dropScript($elseStart['parserIndex']);
-                        $this->dropScriptEndings($operation['parserIndex'] + $operation['params']['offset']);
-                        $gotoIndex = $operation['parserIndex'] + $operation['params']['offset'] - 5;
-                        $gotoOperation = $this->operations[$gotoIndex];
-                        $setIndex = $gotoIndex + $gotoOperation['params']['offset'];
+                        $this->dropScript($operation['parserIndex'] + $operation['params']['offset']);
+                        if (!$gotoOperation) {
+                            exit("[error] JSOP_IFEQ No Goto ");
+                        }
+                        $setIndex = $gotoOperation['parserIndex'] + $gotoOperation['params']['offset'];
                         $setOperation = $this->operations[$setIndex];
                         $stack = $this->stack;
                         switch ($setOperation['name']) {
@@ -240,31 +267,18 @@ trait Operation
                                 $this->revealOperation($setOperation);
                                 break;
                             default:
-                                $endIndex = $this->findFirstOperationIndex('JSOP_SETRVAL', $setIndex);
-                                if (!$endIndex) {
-                                    throw new \Exception("[error] JSOP_IFEQ Unknown setOperation " . $setOperation['name']);
+                                $endOperation = $this->findFirstOperation('JSOP_SETRVAL', $setIndex);
+                                if (!$endOperation) {
+                                    exit("[error] JSOP_IFEQ Unknown setOperation " . $setOperation['name']);
                                 }
-                                $this->revealOperations($setIndex, $endIndex, [], false);
+                                $this->revealOperations($setIndex, $endOperation['parserIndex'], [], false);
                                 break;
                         }
                         $script = $this->popStack();
-                        $this->writeScript($operation['parserIndex'], $value . '?' . $script->getValue() . ':');
+                        $this->writeScript($operation['parserIndex'], $value . '?' . $script->getScript() . ':');
                         $this->stack = $stack;
                         $this->popStack();
-                    } catch (\Exception $e) {
-                        $this->writeScript($operation['parserIndex'] - 1, $e);
-                        $this->stack = $stack;
-                    }
-                    return;
-                }
-                if (isset($this->operations[$elseStart['parserIndex'] - 5]) && $this->operations[$elseStart['parserIndex'] - 5]['name'] == 'JSOP_GOTO') {
-                    $goto = $this->operations[$elseStart['parserIndex'] - 5];
-                    if ($goto['params']['offset'] > 0) {
-                        if ($this->hasOperation($goto['parserIndex'], $goto['parserIndex'] + $goto['params']['offset'], 'JSOP_LOOPENTRY')) {
-                            $this->writeScript($goto['parserIndex'], 'break;');
-                        } else {
-                            $this->writeScript($goto['parserIndex'] + $goto['params']['offset'], '}');
-                        }
+                        return;
                     }
                 }
                 break;
@@ -310,13 +324,39 @@ trait Operation
             //control loop
             case 'JSOP_IFNE':
                 $value = $this->getLogicValue($this->popStack());
-                $this->writeScript($operation['parserIndex'], 'while(' . $value . ')');
+                $this->writeScript($operation['parserIndex'], 'if(' . $value . ')');
                 break;
             case 'JSOP_LOOPHEAD':
-                $this->writeScript($operation['parserIndex'], '{');
+                $gotoOperation = $this->_getLoopGoto($operation);
+                $isDo = !$gotoOperation;
+                if ($isDo) {
+                    $this->writeScript($operation['parserIndex'], 'do{', -1);
+                    $entryOperation = $this->operations[$operation['parserIndex'] + $operation['length']];
+                    $ifOperation = $entryOperation;
+                    do {
+                        $ifOperation = $this->_getLoopLogic($ifOperation);
+                    } while ($this->operations[$ifOperation['parserIndex'] + $ifOperation['params']['offset']]['parserIndex'] != $operation['parserIndex']);
+                } else {
+                    $entryOperation = $this->operations[$gotoOperation['parserIndex'] + $gotoOperation['params']['offset']];
+                    $ifOperation = $this->_getLoopLogic($entryOperation);
+                }
+                $this->revealOperations($entryOperation['parserIndex'], $ifOperation['parserIndex'] + $ifOperation['length']);
+                $this->revealOperations($operation['parserIndex'] + $operation['length'], $entryOperation['parserIndex']);
+                if ($isDo) {
+                    $this->writeScript(
+                        $ifOperation['parserIndex'],
+                        str_replace('if(', '} while(', $this->getScript($ifOperation['parserIndex'])['value'])
+                    );
+                } else {
+                    $this->writeScript(
+                        $operation['parserIndex'],
+                        str_replace('if(', 'while(', $this->getScript($ifOperation['parserIndex'])['value']) . '{',
+                        -1
+                    );
+                    $this->writeScript($ifOperation['parserIndex'], '}');
+                }
                 break;
             case 'JSOP_LOOPENTRY':
-                $this->writeScript($operation['parserIndex'], 'JSOP_LOOPENTRY');
                 break;
             //For-In Statement
             case 'JSOP_ITER':
@@ -817,6 +857,70 @@ trait Operation
         return $value;
     }
 
+    protected function _getLoopGoto($operation)
+    {
+        $gotoIndex = $operation['parserIndex'] - 5;
+        if (!isset($this->operations[$gotoIndex])) {
+            return false;
+        }
+        $gotoOperation = $this->operations[$gotoIndex];
+        if ($gotoOperation['name'] !== 'JSOP_GOTO') {
+            return false;
+        }
+        return $gotoOperation;
+    }
+
+    protected function _getLoopLogic($entry)
+    {
+        $if = $entry;
+        do {
+            $if = $this->findFirstOperation(
+                ['JSOP_IFNE', 'JSOP_IFEQ'],
+                $if['parserIndex'] + $if['length']
+            );
+            if (!$if) {
+                return false;
+            }
+        } while ($if['params']['offset'] > 0);
+        return $if;
+    }
+
+    protected function _getBranchGoto($operation)
+    {
+        $gotoIndex = $operation['parserIndex'] + $operation['params']['offset'] - 5;
+        if (!isset($this->operations[$gotoIndex])) {
+            return false;
+        }
+        $gotoOperation = $this->operations[$gotoIndex];
+        if ($gotoOperation['name'] !== 'JSOP_GOTO') {
+            return false;
+        }
+        return $gotoOperation;
+    }
+
+    protected function _getBranchBreak($goto)
+    {
+        if ($goto['params']['offset'] > 0) {
+            if ($this->hasOperation($goto['parserIndex'], $goto['parserIndex'] + $goto['params']['offset'], 'JSOP_LOOPENTRY')) {
+                $this->writeScript($goto['parserIndex'], 'break;');
+                return true;
+            }
+        }
+        return false;
+    }
+
+    protected function _getBranchContinue($goto)
+    {
+        if ($goto['params']['offset'] < 0) {
+            $nextOperation = $this->gotoNextOperation($goto);
+            if ($nextOperation['name'] == 'JSOP_LOOPENTRY') {
+                $this->writeScript($goto['parserIndex'], 'continue;');
+                return true;
+            }
+        }
+        return false;
+    }
+
     protected function _combineLogic()
     {
         ksort($this->logicStacks);
@@ -845,12 +949,9 @@ trait Operation
         $tree = ['type' => 'script'];
         for ($i = 0; $i < $logicStackKeysCount; $i++) {
             $logicStack = $this->logicStacks[$logicStackKeys[$i]];
-            if (
-                is_null($logicStack['value']) &&
-                ($preStack = $this->logicStacks[$logicStackKeys[$i - 1]]) &&
-                $preStack['type'] == 'not'
-            ) {
-                $this->logicStacks[$logicStackKeys[$i]]['value'] = '!(' . $preStack['value'] . ')';
+            if (is_null($logicStack['value'])) {
+                $preStack = $this->logicStacks[$logicStackKeys[$i - 1]];
+                $this->logicStacks[$logicStackKeys[$i]]['value'] = $preStack['type'] == 'not' ? ('!(' . $preStack['value'] . ')') : $preStack['value'];
                 unset($this->logicStacks[$logicStackKeys[$i - 1]]);
             } elseif (!isset($logicStackKeys[$i + 1])) {
                 $preStack = $this->logicStacks[$logicStackKeys[$i - 1]];
