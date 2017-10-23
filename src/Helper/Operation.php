@@ -18,18 +18,6 @@ trait Operation
 {
     protected $logicStacks = [];
 
-    protected function popControlStack($type)
-    {
-        $type .= 'Stacks';
-        return array_pop($this->$type);
-    }
-
-    protected function pushControlStack($type, $data = [])
-    {
-        $type .= 'Stacks';
-        array_push($this->$type, $data);
-    }
-
     protected function gotoNextOperation($nextOperation)
     {
         while (isset($nextOperation['params']['offset'])) {
@@ -60,6 +48,9 @@ trait Operation
         for ($i = $start; $i < $end; $i++) {
             $operation = $this->operations[$operationKeys[$i]];
             if (!$operation['isCover']) {
+                if ($this->isDebug) {
+                    echo '[', $operationKeys[$i], ']', $operation['name'], json_encode($operation['params']), ' pop: ', $operation['pop'], ' push: ', $operation['push'], ' byte: ', $operation['length'], CLIENT_EOL;
+                }
                 $this->revealOperation($operation, $conditons);
                 $this->operations[$operationKeys[$i]]['isCover'] = $isCover;
             }
@@ -107,8 +98,8 @@ trait Operation
             case 'JSOP_NOP':
                 break;
             case 'JSOP_RETURN':
-                $val = $this->popStack();
-                $this->writeScript($operation['parserIndex'], 'return ' . $val->getValue() . ';');
+                $value = $this->getLogicValue($operation, $this->popStack());
+                $this->writeScript($operation['parserIndex'], 'return ' . $value . ';');
                 break;
             //change stack
             case 'JSOP_POP':
@@ -166,29 +157,6 @@ trait Operation
                 $this->pushStack($val1);
                 $this->pushStack($val2);
                 break;
-            //math
-            case 'JSOP_ADD':
-            case 'JSOP_SUB':
-            case 'JSOP_MUL':
-            case 'JSOP_DIV':
-            case 'JSOP_MOD':
-            case 'JSOP_BITOR':
-            case 'JSOP_BITXOR':
-            case 'JSOP_BITAND':
-            case 'JSOP_RSH':
-            case 'JSOP_LSH':
-            case 'JSOP_URSH':
-                $right = $this->popStack();
-                $left = $this->popStack();
-                $this->pushStack(['script' => '(' . $left->getValue() . $operation['image'] . $right->getValue() . ')', 'type' => 'script']);
-                break;
-            case 'JSOP_BITNOT':
-            case 'JSOP_NEG':
-                $val = $this->popStack();
-                $this->pushStack(['script' => '(' . $operation['image'] . $val->getValue() . ')', 'type' => 'script']);
-                break;
-            case 'JSOP_POS':
-                break;
             //control goto
             case 'JSOP_GOTO':
                 if (!empty($conditons)) {
@@ -205,16 +173,16 @@ trait Operation
                 break;
             //control branch
             case 'JSOP_IFEQ':
-                $value = $this->getLogicValue($this->popStack());
+                $value = $this->getLogicValue($operation, $this->popStack());
                 //storage stack for k=x?a:b
-                $stack = $this->stack;
+                $stackCopy = serialize($this->stack);
                 $this->appendScript($operation['parserIndex'], 'if(' . $value . '){');
                 if ($operation['params']['offset'] > 0) {
                     $elseStart = $this->gotoNextOperation($operation);
                     $this->revealOperations($operation['parserIndex'] + $operation['length'], $elseStart['parserIndex']);
                     $gotoOperation = $this->_getBranchGoto($operation);
                     while ($this->_getBranchContinue($gotoOperation) || $this->_getBranchBreak($gotoOperation)) {
-                        $gotoOperation = $this->findFirstOperation('JSOP_GOTO', $gotoOperation['parserIndex']);
+                        $gotoOperation = $this->findFirstOperation('JSOP_GOTO', $gotoOperation['parserIndex'] + $gotoOperation['length']);
                         if (!$gotoOperation) {
                             break;
                         }
@@ -244,7 +212,7 @@ trait Operation
                             $this->appendScript($operation['parserIndex'] + $operation['params']['offset'], '}', +1);
                             break;
                     }
-                    $oldCount = count($stack);
+                    $oldCount = count(unserialize($stackCopy));
                     $newCount = count($this->stack);
                     if ($oldCount != $newCount) {
                         if (($newCount - $oldCount) != 1) {
@@ -252,32 +220,37 @@ trait Operation
                         }
                         $this->dropScript($nextOperationIndex);
                         $this->dropScript($operation['parserIndex']);
-                        $this->dropScript($operation['parserIndex'] + $operation['params']['offset']);
+                        $this->dropScript($operation['parserIndex'] + $operation['params']['offset'], +1);
                         if (!$gotoOperation) {
                             exit("[error] JSOP_IFEQ No Goto ");
                         }
                         $setIndex = $gotoOperation['parserIndex'] + $gotoOperation['params']['offset'];
                         $setOperation = $this->operations[$setIndex];
-                        $stack = $this->stack;
                         switch ($setOperation['name']) {
                             case 'JSOP_SETELEM':
                             case 'JSOP_SETNAME':
                             case 'JSOP_SETCONST':
                             case 'JSOP_SETPROP':
-                                $this->revealOperation($setOperation);
+                            case 'JSOP_INITPROP':
+                                $endOperation = $this->getNextOperation($setOperation);
                                 break;
-                            default:
-                                $endOperation = $this->findFirstOperation('JSOP_SETRVAL', $setIndex);
-                                if (!$endOperation) {
-                                    exit("[error] JSOP_IFEQ Unknown setOperation " . $setOperation['name']);
-                                }
-                                $this->revealOperations($setIndex, $endOperation['parserIndex'], [], false);
+                            default://todo find all ending operation
+                                $endOperation = $this->findFirstOperation(
+                                    ['JSOP_SETRVAL', 'JSOP_GOTO', 'JSOP_POP', 'JSOP_RETURN', 'JSOP_IFEQ', 'JSOP_IFNE',
+                                    ],
+                                    $setIndex
+                                );
                                 break;
                         }
-                        $script = $this->popStack();
-                        $this->writeScript($operation['parserIndex'], $value . '?' . $script->getScript() . ':');
-                        $this->stack = $stack;
-                        $this->popStack();
+                        if (!$endOperation) {
+                            exit("[error] JSOP_IFEQ Unknown endOperation " . $operation['parserIndex']);
+                        }
+                        $this->revealOperations($setIndex, $endOperation['parserIndex'], [], false);
+                        $left = $this->popStack();
+                        $this->stack = unserialize($stackCopy);
+                        $this->revealOperations($gotoOperation['parserIndex'] + 5, $endOperation['parserIndex']);
+                        $right = $this->popStack();
+                        $this->pushStack(['type' => 'script', 'script' => $value . '?' . $left->getScript() . ':' . $right->getScript()]);
                         return;
                     }
                 }
@@ -323,7 +296,7 @@ trait Operation
                 break;
             //control loop
             case 'JSOP_IFNE':
-                $value = $this->getLogicValue($this->popStack());
+                $value = $this->getLogicValue($operation, $this->popStack());
                 $this->writeScript($operation['parserIndex'], 'if(' . $value . ')');
                 break;
             case 'JSOP_LOOPHEAD':
@@ -374,7 +347,27 @@ trait Operation
             case 'JSOP_ENDITER':
                 $val = $this->popStack();
                 break;
-            //logic
+            //math
+            case 'JSOP_BITNOT':
+            case 'JSOP_NEG':
+                $value = $this->getLogicValue($operation, $this->popStack());
+                $this->pushStack(['script' => '(' . $operation['image'] . $value . ')', 'type' => 'script']);
+                break;
+            case 'JSOP_POS':
+                break;
+            //math
+            case 'JSOP_ADD':
+            case 'JSOP_SUB':
+            case 'JSOP_MUL':
+            case 'JSOP_DIV':
+            case 'JSOP_MOD':
+            case 'JSOP_BITOR':
+            case 'JSOP_BITXOR':
+            case 'JSOP_BITAND':
+            case 'JSOP_RSH':
+            case 'JSOP_LSH':
+            case 'JSOP_URSH':
+                //logic
             case 'JSOP_EQ':
             case 'JSOP_NE':
             case 'JSOP_LT':
@@ -385,25 +378,33 @@ trait Operation
             case 'JSOP_STRICTNE':
             case 'JSOP_IN':
                 $right = $this->popStack();
+                $rVal = $right->getValue();
                 $left = $this->popStack();
-                $this->pushStack(['script' => '(' . $left->getValue() . ' ' . $operation['image'] . ' ' . $right->getValue() . ')', 'type' => 'script']);
+                $lVal = $right->getValue();
+                if ($left->type == 'logic') {
+                    $lVal = $this->_combineLogicByParserIndex($left->operation['parserIndex']);
+                }
+                if ($right->type == 'logic') {
+                    $rVal = $this->_combineLogicByParserIndex($right->operation['parserIndex']);
+                }
+                $this->pushStack(['script' => '(' . $lVal . ' ' . $operation['image'] . ' ' . $rVal . ')', 'type' => 'script']);
                 break;
             case 'JSOP_OR':
                 $script = $this->popStack();
                 $gotoIndex = $operation['parserIndex'] + $operation['params']['offset'];
                 $this->logicStacks[$operation['parserIndex']] = ['type' => 'or', 'goto' => $gotoIndex, 'value' => $script->getValue()];
-                $this->pushStack([]);
+                $this->pushStack(['type' => 'logic', 'operation' => $operation]);
                 break;
             case 'JSOP_AND':
                 $script = $this->popStack();
                 $gotoIndex = $operation['parserIndex'] + $operation['params']['offset'];
                 $this->logicStacks[$operation['parserIndex']] = ['type' => 'and', 'goto' => $gotoIndex, 'value' => $script->getValue()];
-                $this->pushStack([]);
+                $this->pushStack(['type' => 'logic', 'operation' => $operation]);
                 break;
             case 'JSOP_NOT':
                 $script = $this->popStack();
                 $this->logicStacks[$operation['parserIndex']] = ['type' => 'not', 'value' => $script->getValue()];
-                $this->pushStack([]);
+                $this->pushStack(['type' => 'logic', 'operation' => $operation]);
                 break;
             //typeof
             case 'JSOP_TYPEOF':
@@ -431,6 +432,9 @@ trait Operation
                 $_this = $this->popStack();
                 $_callee = $this->popStack();
                 $write = '';
+                if (!empty($this->logicStacks)) {
+                    $write .= $this->_combineLogicByGotoIndex($operation['parserIndex'] + $operation['length']);
+                }
                 if ($operation['name'] == 'JSOP_NEW') {
                     $write = 'new ';
                 }
@@ -438,7 +442,9 @@ trait Operation
                 $write .= '(';
                 if ($_argc) {
                     for ($i = $_argc - 1; $i >= 0; $i--) {
-                        $write .= $_argv[$i]->getValue() . ',';
+                        //$argv = $_argv[$i]->getScript() ? $_argv[$i]->getScript() : $_argv[$i]->name;//todo
+                        $argv = $_argv[$i]->getValue();
+                        $write .= $argv . ',';
                     }
                     $write = substr($write, 0, strlen($write) - 1);
                 }
@@ -461,17 +467,14 @@ trait Operation
                 $this->pushStack(['type' => 'script', 'script' => 'delete ' . $obj->getValue() . '.' . $this->atoms[$operation['params']['nameIndex']]]);
                 break;
             case 'JSOP_SETPROP':
-                $value = $this->getLogicValue($this->popStack());
+                $value = $this->getLogicValue($operation, $this->popStack());
                 $name = $this->popStack();
                 $this->pushStack(['type' => 'script', 'script' => $name->getValue() . '.' . $this->atoms[$operation['params']['nameIndex']] . '=' . $value]);
                 break;
             case 'JSOP_GETPROP':
+            case 'JSOP_CALLPROP':
                 $obj = $this->popStack();
                 $this->pushStack(['name' => $obj->getValue() . '.' . $this->atoms[$operation['params']['nameIndex']]]);
-                break;
-            case 'JSOP_CALLPROP':
-                $name = $this->popStack();
-                $this->pushStack(['name' => $name->getValue() . '.' . $this->atoms[$operation['params']['nameIndex']]]);
                 break;
             case 'JSOP_INITELEM':
             case 'JSOP_INITELEM_INC':
@@ -487,16 +490,12 @@ trait Operation
                 $this->pushStack(['type' => 'script', 'script' => 'delete ' . $obj->getValue() . '[' . $propval->getValue() . ']']);
                 break;
             case 'JSOP_SETELEM':
-                $value = $this->getLogicValue($this->popStack());
+                $value = $this->getLogicValue($operation, $this->popStack());
                 $propval = $this->popStack();
                 $obj = $this->popStack();
                 $this->pushStack(['type' => 'script', 'script' => $obj->getValue() . '[' . $propval->getValue() . ']=' . $value]);
                 break;
             case 'JSOP_GETELEM':
-                $propval = $this->popStack();
-                $obj = $this->popStack();
-                $this->pushStack(['name' => $obj->getValue() . '[' . $propval->getValue() . ']']);
-                break;
             case 'JSOP_CALLELEM':
                 $propval = $this->popStack();
                 $obj = $this->popStack();
@@ -583,7 +582,7 @@ trait Operation
                 break;
             //赋值
             case 'JSOP_SETNAME':
-                $value = $this->getLogicValue($this->popStack());
+                $value = $this->getLogicValue($operation, $this->popStack());
                 $name = $this->popStack();
                 $name->value = $value;
                 $name->script = $name->getValue() . ' = ' . $value;
@@ -591,7 +590,7 @@ trait Operation
                 $this->pushStack($name);
                 break;
             case 'JSOP_SETCONST':
-                $value = $this->getLogicValue($this->popStack());
+                $value = $this->getLogicValue($operation, $this->popStack());
                 $name = $this->atoms[$operation['params']['nameIndex']];
                 $this->pushStack([
                     'type' => 'script',
@@ -739,7 +738,7 @@ trait Operation
                 break;
             case 'JSOP_SETLOCAL'://todo
                 $raw = $this->popStack();
-                $value = $raw->name ?: $this->getLogicValue($raw);
+                $value = $raw->name ?: $this->getLogicValue($operation, $raw);
                 $localno = $operation['params']['localno'];
                 $name = '_local' . $localno;
                 $localVar = [
@@ -764,10 +763,10 @@ trait Operation
                 $this->pushStack($aliasedVar);
                 break;
             case 'JSOP_SETALIASEDVAR'://todo
-                $value = $this->getLogicValue($this->popStack());
-                $aliasedVar = ['type' => 'aliasedVar', 'value' => '_aliased' . rand(1000, 9999)];
+                $value = $this->getLogicValue($operation, $this->popStack());
+                $aliasedVar = ['type' => 'aliasedVar', 'name' => '_aliased' . rand(1000, 9999)];
                 $this->decompile->setAliasedVariable($operation['params']['hops'], $operation['params']['slot'], $aliasedVar);
-                $this->pushStack(['type' => 'script', 'value' => $aliasedVar['value'] . '=' . $value]);
+                $this->pushStack(['type' => 'script', 'name' => $aliasedVar['name'], 'script' => $aliasedVar['name'] . '=' . $value]);
                 break;
             //Exception Handling
             case 'JSOP_TRY':
@@ -848,11 +847,11 @@ trait Operation
         $this->writeScript($defaultIndex, 'default:');
     }
 
-    protected function getLogicValue(Stack $val)
+    protected function getLogicValue($operation, Stack $val)
     {
         $value = $val->getValue();
         if (!empty($this->logicStacks)) {
-            $value = $this->_combineLogic() . $value;
+            $value = $this->_combineLogicByGotoIndex($operation['parserIndex'] + $operation['length']) . $value;
         }
         return $value;
     }
@@ -942,6 +941,28 @@ trait Operation
         return $result['value'];
     }
 
+    protected function _getLogicScript($stack)
+    {
+        $value = '';
+        $isNot = $stack['type'] == 'not';
+        if ($isNot) {
+            $value .= '!(';
+        }
+        $value .= $stack['value'];
+        if ($isNot) {
+            $value .= ')';
+        }
+        switch ($stack['type']) {
+            case 'and':
+                $value .= ' && ';
+                break;
+            case 'or':
+                $value .= ' || ';
+                break;
+        }
+        return $value;
+    }
+
     protected function _combineLogicUnit()
     {
         $logicStackKeys = array_keys($this->logicStacks);
@@ -953,9 +974,10 @@ trait Operation
                 $preStack = $this->logicStacks[$logicStackKeys[$i - 1]];
                 $this->logicStacks[$logicStackKeys[$i]]['value'] = $preStack['type'] == 'not' ? ('!(' . $preStack['value'] . ')') : $preStack['value'];
                 unset($this->logicStacks[$logicStackKeys[$i - 1]]);
-            } elseif (!isset($logicStackKeys[$i + 1])) {
+            } elseif (!isset($logicStackKeys[$i + 1])) {//if last one
                 $preStack = $this->logicStacks[$logicStackKeys[$i - 1]];
-                $this->logicStacks[$preStack['goto']] = $logicStack;
+                $value = $this->_getLogicScript($preStack) . $this->_getLogicScript($logicStack);
+                $this->logicStacks[$logicStackKeys[$i - 1]] = ['value' => $value, 'type' => 'script'];
                 unset($this->logicStacks[$logicStackKeys[$i]]);
             } elseif (!isset($logicStack['goto'])) {
                 continue;
@@ -982,5 +1004,55 @@ trait Operation
                 break;
             }
         }
+    }
+
+    protected function _combineLogicByGotoIndex($index)
+    {
+        krsort($this->logicStacks);
+        $executeFlag = true;
+        $execute = [];
+        $storage = [];
+        foreach ($this->logicStacks as $key => $value) {
+            if (isset($value['goto']) && $value['goto'] > $index) {
+                $executeFlag = false;
+            }
+            if ($executeFlag) {
+                $execute[$key] = $value;
+            } else {
+                $storage[$key] = $value;
+            }
+        }
+        $result = '';
+        if (!empty($execute)) {
+            $this->logicStacks = $execute;
+            $result = $this->_combineLogic();
+        }
+        $this->logicStacks = $storage;
+        return $result;
+    }
+
+    protected function _combineLogicByParserIndex($index)
+    {
+        ksort($this->logicStacks);
+        $executeFlag = true;
+        $execute = [];
+        $storage = [];
+        foreach ($this->logicStacks as $key => $value) {
+            if ($key > $index) {
+                $executeFlag = false;
+            }
+            if ($executeFlag) {
+                $execute[$key] = $value;
+            } else {
+                $storage[$key] = $value;
+            }
+        }
+        $result = '';
+        if (!empty($execute)) {
+            $this->logicStacks = $execute;
+            $result = $this->_combineLogic();
+        }
+        $this->logicStacks = $storage;
+        return $result;
     }
 }

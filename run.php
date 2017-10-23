@@ -18,10 +18,10 @@ foreach ($contexts as $index => $context) {
         /* @var \Irelance\Mozjs34\Context $context */
         $context->printProperties([
             //'Summaries',
+            'Atoms',
             'Operations',
             'Content',
             //'Nodes',
-            'Atoms',
             'Consts',
             'Objects',
             'Regexps',

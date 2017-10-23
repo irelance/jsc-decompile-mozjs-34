@@ -21,6 +21,8 @@ class Decompile
     use Xdr\Object;
     use Xdr\Scope;
     use Xdr\Operation;
+
+    public $isDebug = false;
     private $fp;
     protected $parseIndex = 0;
 
@@ -88,7 +90,7 @@ class Decompile
     public function getLocalVariable($index)
     {
         if (!isset($this->localVariable[$index])) {
-            return new Stack(['type' => 'undefined', 'value' => 'undefined']);
+            return new Stack(['parserIndex' => 0, 'type' => 'undefined', 'value' => 'undefined']);
         }
         return $this->localVariable[$index];
     }
@@ -106,7 +108,7 @@ class Decompile
     public function getAliasedVariable($hops, $slot)
     {
         if (!isset($this->aliasedVariable[$hops][$slot])) {
-            return new Stack(['type' => 'undefined', 'value' => 'undefined']);
+            return new Stack(['parserIndex' => 0, 'type' => 'undefined', 'value' => 'undefined']);
         }
         return $this->aliasedVariable[$hops][$slot];
     }

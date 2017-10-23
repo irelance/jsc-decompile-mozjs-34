@@ -19,6 +19,7 @@ class Context
 
     public $index = null;
     public $decompile = null;
+    protected $isDebug = false;
 
     protected $content = '';
     protected $stack = [];

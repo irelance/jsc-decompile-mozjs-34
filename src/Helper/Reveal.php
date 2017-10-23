@@ -121,12 +121,13 @@ trait Reveal
     {
         foreach ($this->operations as $key => $operation) {
             if (!$this->operations[$key]['isCover']) {
+                if ($this->isDebug) {
+                    echo $key, CLIENT_EOL;
+                }
                 $this->revealOperation($operation);
                 $this->operations[$key]['isCover'] = true;
             }
         }
-        //ksort($this->storageScript);
-        //$this->contentPreTreat();
 
         ksort($this->storageScript);
         $scriptKeys = array_keys($this->storageScript);
@@ -134,8 +135,11 @@ trait Reveal
         echo '----------------Content----------------', CLIENT_EOL;
         for ($i = 0; $i < $scriptKeysCount; $i++) {
             $script = $this->storageScript[$scriptKeys[$i]];
-            echo '[', $scriptKeys[$i] / 2, ']', $script['value'], CLIENT_EOL;
-            //echo $script['value'], CLIENT_EOL;
+            if ($this->isDebug) {
+                echo '[', $scriptKeys[$i] / 2, ']', $script['value'], CLIENT_EOL;
+            } else {
+                echo $script['value'], CLIENT_EOL;
+            }
         }
         echo '---------------------------------------', CLIENT_EOL;
     }

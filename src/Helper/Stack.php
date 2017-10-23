@@ -11,7 +11,6 @@ namespace Irelance\Mozjs34\Helper;
 
 class Stack
 {
-    public $isJson = false;
     public $type;
     public $name;
     public $value;//raw input value
@@ -67,7 +66,7 @@ class Stack
     {
         $result = '[';
         foreach ($array as $item) {
-            $result .= self::renderBase($item) . ',';
+            $result .= $item->getValue() . ',';
         }
         $resultLen = strlen($result);
         if ($resultLen>1) {
@@ -82,7 +81,7 @@ class Stack
         $result = '{';
         foreach ($object as $key => $value) {
             $result .= $key . ':';
-            $result .= self::renderBase($value) . ',';
+            $result .= $value->getValue() . ',';
         }
         $resultLen = strlen($result);
         if ($resultLen>1) {
