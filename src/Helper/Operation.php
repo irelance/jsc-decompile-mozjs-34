@@ -380,7 +380,7 @@ trait Operation
                 $right = $this->popStack();
                 $rVal = $right->getValue();
                 $left = $this->popStack();
-                $lVal = $right->getValue();
+                $lVal = $left->getValue();
                 if ($left->type == 'logic') {
                     $lVal = $this->_combineLogicByParserIndex($left->operation['parserIndex']);
                 }
