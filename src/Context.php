@@ -24,6 +24,7 @@ class Context
     protected $content = '';
     protected $stack = [];
 
+    protected $argvs = [];
     protected $summaries = [];
     protected $operations = [];
     protected $nodes = [];
@@ -34,6 +35,11 @@ class Context
     protected $tryNotes = [];
     protected $scopeNotes = [];
     protected $hasLazyScript;
+
+    public function addArgv($value)
+    {
+        $this->argvs[] = $value;
+    }
 
     public function addSummary($key, $value)
     {

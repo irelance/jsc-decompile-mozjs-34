@@ -530,7 +530,7 @@ trait Operation
                 break;
             case 'JSOP_DEFFUN':
                 $object = $this->objects[$operation['params']['funcIndex']];
-                $this->writeScript($operation['parserIndex'], 'function ' . $object['name'] . '(){ __INDEX_' . $object['contextIndex'] . '__ }');
+                $this->writeScript($operation['parserIndex'], 'function ' . $object['name'] . '( __ARGV_' . $object['contextIndex'] . '__ ){ __FUNC_' . $object['contextIndex'] . '__ }');
                 break;
             //定义常量 ['isJson'=>false,'value'=>'xxxx']
             case 'JSOP_TRUE':
@@ -631,13 +631,12 @@ trait Operation
                 $val = $this->popStack();
                 $this->pushStack([
                     'type' => 'script',
-                    'name' => '__ARG_' . $operation['params']['argno'] . '__',
-                    'script' => '__ARG_' . $operation['params']['argno'] . '__ = ' . $val->getValue(),
+                    'name' => $this->argvs[$operation['params']['argno']],
+                    'script' => $this->argvs[$operation['params']['argno']] . ' = ' . $val->getValue(),
                 ]);
                 break;
             case 'JSOP_GETARG':
-                //todo try to get arguments
-                $this->pushStack(['name' => '__ARG_' . $operation['params']['argno'] . '__']);
+                $this->pushStack(['name' => $this->argvs[$operation['params']['argno']]]);
                 break;
             //Array
             case 'JSOP_NEWARRAY_COPYONWRITE':

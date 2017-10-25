@@ -59,6 +59,7 @@ trait Script
         $nameCount = $nargs + $nvars;
         for ($i = 0; $i < $nameCount; $i++) {
             $atom = $this->XDRAtom();
+            $context->addArgv($atom);
         }
         for ($i = 0; $i < $nameCount; $i++) {
             $u8 = $this->todec(1);

@@ -143,4 +143,11 @@ trait Reveal
         }
         echo '---------------------------------------', CLIENT_EOL;
     }
+
+    public function printArgv()
+    {
+        echo '------------------Argv------------------', CLIENT_EOL;
+        echo implode(',', $this->argvs), CLIENT_EOL;
+        echo '---------------------------------------', CLIENT_EOL;
+    }
 }
