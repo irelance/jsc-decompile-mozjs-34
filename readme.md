@@ -4,7 +4,7 @@ This project is a javascript bytecode decoder for mozilla spider-monkey version 
 
 This version may decompile jsc file compile by cocos-2dx.
 
-It would not work for different version of Mozilla spider-monkey, for its opcode defined different for each version.
+It would not work for different version of Mozilla spider-monkey (without shell of course), for its opcode defined different for each version.
 
 #2.Usage
 
@@ -12,13 +12,13 @@ It would not work for different version of Mozilla spider-monkey, for its opcode
 
 If you are familiar with php, you can skip this part.
 
-install php
+install php7.0
 ```
 # ubuntu
-$ sudo apt install php
+$ sudo apt install php7.0
 
 # mac
-$ brew install php
+$ brew install php7.0
 
 # windows
 # just google an binary one
