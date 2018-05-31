@@ -19,17 +19,6 @@ use Irelance\Mozjs34\Constant;
  */
 trait Script
 {
-    protected function getScriptName()
-    {
-        $this->parseIndex += 5;//todo find the reason
-        $result = '';
-        while ($this->bytecodes[$this->parseIndex]) {
-            $result .= chr($this->bytecodes[$this->parseIndex]);
-            $this->parseIndex++;
-        }
-        $this->parseIndex++;
-        return $result;
-    }
 
     protected function parserHeader(Context $context)
     {
@@ -54,7 +43,39 @@ trait Script
         $context->addSummary('scriptBits', $scriptBit);
         $scriptBits = array_flip(Constant::_ScriptBits);
         if ($scriptBit & (1 << $scriptBits['OwnSource'])) {
-            $context->addSummary('buildPath', $this->getScriptName());
+            $context->addSummary('hasSource', $this->todec(1));
+            $context->addSummary('retrievable', $this->todec(1));
+            if($context->getSummary('hasSource') && !$context->getSummary('retirevable')) {
+                $context->addSummary('sourceLength', $this->todec());
+                $context->addSummary('sourcecompressedLength', $this->todec());
+                $context->addSummary('argumentsNotIncluded', $this->todec(1));
+                $context->addSummary(
+                    'sourceBytes',
+                    $this->getRawHex(
+                        $this->getSummary('sourcecompressedLength') ?
+                        $this->getSummary('sourcecompressedLength') : 
+                        $this->getSummary('sourceLength') * 2
+                    )
+                    );
+            }
+
+            $context->addSummary('hasSourceMap', $this->todec(1));
+            if($context->getSummary('hasSourceMap')) {
+                $context->addSummary('sourceMapURLLen', $this->todec());
+                $context->addSummary('sourceMapURL', $this->getRawHex($context->getSummary('sourceMapURLLen') * 2));
+            }
+
+            $context->addSummary('haveDisplayURL', $this->todec(1));
+            if($context->getSummary('haveDisplayURL')) {
+                $context->addSummary('displayURLLen', $this->todec());
+                $context->addSummary('displayURL', $this->getRawHex($context->getSummary('displayURLLen')));
+            }
+
+            $context->addSummary('haveFilename', $this->todec(1));
+            if($context->getSummary('haveFilename')) {
+                $context->addSummary('buildPath', $this->getCString());
+            }
+            
         }
         $nameCount = $nargs + $nvars;
         for ($i = 0; $i < $nameCount; $i++) {
