@@ -23,6 +23,17 @@ trait Common
         return $result;
     }
 
+    protected function getCString()
+    {
+        $result = '';
+        while ($this->bytecodes[$this->parseIndex]) {
+            $result .= chr($this->bytecodes[$this->parseIndex]);
+            $this->parseIndex++;
+        }
+        $this->parseIndex++;
+        return $result;
+    }
+
     protected function todec($length = 4)//length include start
     {
         return $this->littleEndian2Dec($length);
