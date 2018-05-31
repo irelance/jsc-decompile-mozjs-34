@@ -23,13 +23,14 @@ trait Common
         return $result;
     }
 
-    protected function getCString($length)
+    protected function getCString()
     {
-        $end = $this->parseIndex + $length;
         $result = '';
-        for (; $this->parseIndex < $end; $this->parseIndex++) {
+        while ($this->bytecodes[$this->parseIndex]) {
             $result .= chr($this->bytecodes[$this->parseIndex]);
+            $this->parseIndex++;
         }
+        $this->parseIndex++;
         return $result;
     }
 
