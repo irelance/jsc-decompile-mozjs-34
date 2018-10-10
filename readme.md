@@ -37,8 +37,15 @@ $ composer install
 ```
 $ cd path/to/project
 $ php run.php *.jsc > path/to/decompile.txt
+#if this didn't work, you can also try below command to get the bitcode
+$ php scan.php > path/to/scan.txt
 ```
 
 #3.Besides
 
-This project is not complete yet. Decompile result is not a runable file. Some local variables are auto generate, for the compiler discards local variables.
+This project is not complete yet.
+
+- A Fatal Bug was found when decompile with a deep context
+
+Decompile result is not a runable file.
+Some local variables are auto generate, for the compiler discards local variables.

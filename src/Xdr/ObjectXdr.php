@@ -9,7 +9,7 @@
 namespace Irelance\Mozjs34\Xdr;
 
 
-trait Object
+trait ObjectXdr
 {
     public function xdrObjectExtra($objectType)
     {

@@ -18,7 +18,7 @@ class Decompile
     use Xdr\Common;
     use Xdr\Script;
     use Xdr\Atom;
-    use Xdr\Object;
+    use Xdr\ObjectXdr;
     use Xdr\Scope;
     use Xdr\Operation;
 
