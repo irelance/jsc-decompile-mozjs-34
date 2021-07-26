@@ -52,9 +52,9 @@ trait Script
                 $context->addSummary(
                     'sourceBytes',
                     $this->getRawHex(
-                        $this->getSummary('sourcecompressedLength') ?
-                        $this->getSummary('sourcecompressedLength') : 
-                        $this->getSummary('sourceLength') * 2
+                        $context->getSummary('sourcecompressedLength') ?
+                            $context->getSummary('sourcecompressedLength') :
+                            $context->getSummary('sourceLength') * 2
                     )
                     );
             }

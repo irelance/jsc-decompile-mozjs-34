@@ -90,7 +90,7 @@ class Context
 
     public function addScopeNote($index, $start, $length, $parent)
     {
-        $this->tryNotes[$index] = ['parent' => $parent, 'start' => $start, 'length' => $length];
+        $this->scopeNotes[$index] = ['parent' => $parent, 'start' => $start, 'length' => $length];
     }
 
     public function addHasLazyScript($packedFields)

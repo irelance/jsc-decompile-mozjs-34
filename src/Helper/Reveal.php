@@ -99,7 +99,7 @@ trait Reveal
     public function printScopeNote()
     {
         if (count($this->scopeNotes)) {
-            echo '---------------Summaries---------------', CLIENT_EOL;
+            echo '---------------ScopeNotes---------------', CLIENT_EOL;
             foreach ($this->scopeNotes as $id => $scopeNote) {
                 echo $id, ' : ', json_encode($scopeNote), CLIENT_EOL;
             }
