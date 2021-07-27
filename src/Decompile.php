@@ -9,6 +9,7 @@
  * js/src/jsscript.h
  * js/src/vm/Xdr.h
  */
+
 namespace Irelance\Mozjs34;
 
 use Irelance\Mozjs34\Helper\Stack;
@@ -111,5 +112,20 @@ class Decompile
             return new Stack(['parserIndex' => 0, 'type' => 'undefined', 'value' => 'undefined']);
         }
         return $this->aliasedVariable[$hops][$slot];
+    }
+
+    protected $globalVariable = [];
+
+    public function setGlobalVariable($key, $value)
+    {
+        $this->globalVariable[$key] = $value;
+    }
+
+    public function getGlobalVariable($key)
+    {
+        if (!isset($this->localVariable[$key])) {
+            return new Stack(['parserIndex' => 0, 'type' => 'undefined', 'name' => $key, 'value' => $key]);
+        }
+        return $this->globalVariable[$key];
     }
 }

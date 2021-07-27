@@ -569,7 +569,34 @@ trait Operation
                 $this->pushStack(['value' => '/' . $this->regexps[$operation['params']['regexpIndex']]['source'] . '/', 'type' => 'regexp']);
                 break;
             case 'JSOP_OBJECT'://todo
-                $this->pushStack(['value' => [], 'type' => 'object']);
+                $object = $this->objects[$operation['params']['objectIndex']];
+                $value = [];
+                foreach ($object['initialized'] as $k => $v) {
+                    $type = 'undefined';
+                    switch ($v['type']) {
+                        case 'SCRIPT_INT':
+                        case 'SCRIPT_DOUBLE':
+                            $type = 'number';
+                            break;
+                        case 'SCRIPT_ATOM':
+                            $type = 'string';
+                            break;
+                        case 'SCRIPT_TRUE':
+                        case 'SCRIPT_FALSE':
+                            $type = 'boolean';
+                            break;
+                        case 'SCRIPT_NULL':
+                            $type = 'null';
+                            break;
+                        case 'SCRIPT_OBJECT'://todo maybe function
+                            $type = 'object';
+                            break;
+                        //case 'SCRIPT_VOID':
+                        //case 'SCRIPT_HOLE':
+                    }
+                    $value[$k] = new Stack(['value' => $v['value'], 'type' => $type]);
+                }
+                $this->pushStack(['value' => $value, 'type' => 1 == $object['isArray'] ? 'array' : 'object']);
                 break;
             case 'JSOP_LAMBDA_ARROW':
                 $_this = $this->popStack();
@@ -720,15 +747,22 @@ trait Operation
                 break;
             //Free Variables
             case 'JSOP_BINDGNAME':
-                $this->pushStack([]);
-                break;
-            case 'JSOP_GETGNAME':
-                $this->pushStack([]);
+            case 'JSOP_GETGNAME'://todo check if this different from local, for just access variable name
+                $key = $this->atoms[$operation['params']['nameIndex']];
+                $this->pushStack($this->decompile->getGlobalVariable($key));
                 break;
             case 'JSOP_SETGNAME':
-                $val = $this->popStack();
-                $val = $this->popStack();
-                $this->pushStack([]);
+                $value = $this->popStack();
+                $bind = $this->popStack();
+                $key = $this->atoms[$operation['params']['nameIndex']];
+                $globalVar = [
+                    'type' => 'script',
+                    'name' => $key,
+                    'value' => $value,
+                    'script' => $key . '=' . $value->getValue(),
+                ];
+                $this->decompile->setLocalVariable($key, $globalVar);
+                $this->pushStack($globalVar);
                 break;
             //Local Variables
             case 'JSOP_GETLOCAL'://todo

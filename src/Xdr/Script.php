@@ -204,15 +204,15 @@ trait Script
         $context->index = $index;
         $this->parseScriptIndex = $index;
         $context->decompile = $this;
-        $this->parserHeader($context);
-        $this->parserScript($context);
+        $this->parserHeader($context);//header storage the base info of a context, if jsc compile with no setSourceIsLazy(true), raw source save here
+        $this->parserScript($context);//get the operations and parse to script (maybe not good enough to parse here)
         $this->parserSrcNodes($context);
-        $this->parserAtoms($context);
+        $this->parserAtoms($context);//this section save strings
         $this->parseConsts($context);
-        $this->parserObjects($context);
+        $this->parserObjects($context);//this section save local simple objects
         $this->parserRegexps($context);
         $this->parserTryNotes($context);
-        $this->parserScopeNotes($context);
+        $this->parserScopeNotes($context);//this section save block scope info
         $this->parserHasLazyScript($context);
         return $context;
     }
